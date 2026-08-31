@@ -3,6 +3,8 @@ import { useEffect, useState, useRef } from 'react';
 import { deviceStorage, isAndroidApp } from '@/lib/device';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { InstallmentCalculator } from '@/components/installment-calculator';
 import { Progress } from '@/components/ui/progress';
 import { ChartContainer } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
@@ -55,6 +57,8 @@ import {
   monthsLeft,
   validateBook,
   demoBook,
+  entryMoment,
+  toggleInstallment,
 } from '@/lib/ledger';
 type View =
   | 'overview'
@@ -141,6 +145,8 @@ export default function Home() {
     [kind, setKind] = useState<Kind>('expense'),
     [categoryKind, setCategoryKind] = useState<Kind>('expense');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [historical, setHistorical] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
   const [completedEntry, setCompletedEntry] = useState<Entry | null>(null);
   const [entrySession, setEntrySession] = useState(0);
   const [clockDate, setClockDate] = useState('');
@@ -243,6 +249,7 @@ export default function Home() {
     }
   }
   function addEntry(e?: Entry, nextKind: Kind = 'expense') {
+    setHistorical(false);
     setEdit(e ?? null);
     setKind(e?.kind ?? nextKind);
     setSelectedCategory(e?.category ?? '');
@@ -300,12 +307,12 @@ export default function Home() {
       const now = new Date();
       const entry: Entry = {
         id: edit?.id ?? crypto.randomUUID(),
-        date: edit?.date ?? today(now),
-        ...(edit
-          ? edit.time !== undefined
-            ? { time: edit.time }
-            : {}
-          : { time: currentTime(now) }),
+        ...entryMoment(
+          edit,
+          historical ? String(f.get('historyDate')) : null,
+          String(f.get('historyTime') ?? ''),
+          now,
+        ),
         kind,
         category: selectedCategory,
         cents: amount,
@@ -331,6 +338,7 @@ export default function Home() {
     try {
       const f = new FormData(e.currentTarget);
       const g: Goal = {
+        ...goalEdit,
         id: goalEdit?.id ?? crypto.randomUUID(),
         name: String(f.get('name')).trim(),
         target: cents(String(f.get('target'))),
@@ -416,7 +424,9 @@ export default function Home() {
       )
       .sort((a, b) => b.date.localeCompare(a.date));
   const prefix = mode === 'year' ? '年' : mode === 'month' ? '月' : '日';
-  const unfinished = book.goals.filter((g) => remaining(g) > 0);
+  const unfinished = book.goals.filter(
+    (g) => !(g.completed ?? remaining(g) === 0),
+  );
   const savedTotal = book.goals.reduce((s, g) => s + g.saved, 0);
   const chartData = Array.from(
     {
@@ -486,7 +496,13 @@ export default function Home() {
         <div className="goal-head">
           <h3>{g.name}</h3>
           <span className="badge">
-            {left === 0 ? '已完成' : g.deadline < today() ? '已逾期' : '积累中'}
+            {(g.completed ?? left === 0)
+              ? '已完成'
+              : left === 0
+                ? '金额已达标'
+                : g.deadline < today()
+                  ? '已逾期'
+                  : '积累中'}
           </span>
         </div>
         <p>
@@ -513,38 +529,103 @@ export default function Home() {
             : ' · 目标达成，真好！'}
         </p>
         {!compact && (
-          <div className="flex">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setGoalEdit(g);
-                go('deposit');
-              }}
-            >
-              <Plus />
-              存入 / 取出
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => addGoal(g)}
-              aria-label={`编辑${g.name}`}
-            >
-              <Pencil />
-            </Button>
-            <Button
-              variant="ghost"
-              aria-label={`删除${g.name}`}
-              onClick={() => {
-                if (confirm(`删除“${g.name}”？不会修改收支账目。`))
+          <>
+            <label className="goal-complete-toggle">
+              <Checkbox
+                checked={g.completed ?? left === 0}
+                onCheckedChange={(checked) =>
                   commit({
                     ...book,
-                    goals: book.goals.filter((x) => x.id !== g.id),
-                  });
-              }}
-            >
-              <Trash2 />
-            </Button>
-          </div>
+                    goals: book.goals.map((x) =>
+                      x.id === g.id ? { ...x, completed: checked } : x,
+                    ),
+                  })
+                }
+              />
+              手动标记整个计划已完成
+            </label>
+            <p className="muted">
+              取消勾选可重新开启计划；此开关不改变已存金额。
+            </p>
+            {g.installments && (
+              <details className="installment-list" open>
+                <summary>
+                  分期安排 · {g.installments.filter((p) => p.done).length}/
+                  {g.installments.length} 期完成
+                </summary>
+                <div className="installment-rows">
+                  {g.installments.map((p, i) => (
+                    <label
+                      key={p.id}
+                      className={`installment-row ${p.done ? 'is-done' : ''}`}
+                    >
+                      <Checkbox
+                        aria-label={`${g.name}第${i + 1}期完成`}
+                        checked={p.done}
+                        onCheckedChange={(checked) => {
+                          try {
+                            const updated = toggleInstallment(g, p.id, checked);
+                            commit({
+                              ...book,
+                              goals: book.goals.map((x) =>
+                                x.id === g.id ? updated : x,
+                              ),
+                            });
+                          } catch (e) {
+                            setError((e as Error).message);
+                          }
+                        }}
+                      />
+                      <span>
+                        第 {i + 1} 期{' '}
+                        <small>
+                          {p.date}
+                          {!p.done && p.date < today() ? ' · 已到期' : ''}
+                        </small>
+                      </span>
+                      <b>{money(p.cents)}</b>
+                      <small>{p.done ? '已完成 · 可取消' : '待存入'}</small>
+                    </label>
+                  ))}
+                </div>
+                <p className="muted">
+                  实际存好后再勾选：计入该期金额；取消勾选会撤回。不要再通过“存入”重复录入。若需取出已勾选的存款，请先取消相应期次。
+                </p>
+              </details>
+            )}
+            <div className="flex">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setGoalEdit(g);
+                  go('deposit');
+                }}
+              >
+                <Plus />
+                存入 / 取出
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => addGoal(g)}
+                aria-label={`编辑${g.name}`}
+              >
+                <Pencil />
+              </Button>
+              <Button
+                variant="ghost"
+                aria-label={`删除${g.name}`}
+                onClick={() => {
+                  if (confirm(`删除“${g.name}”？不会修改收支账目。`))
+                    commit({
+                      ...book,
+                      goals: book.goals.filter((x) => x.id !== g.id),
+                    });
+                }}
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          </>
         )}
       </article>
     );
@@ -1046,6 +1127,29 @@ export default function Home() {
         )}
         {view === 'goals' && (
           <>
+            <div className="calculator-entry">
+              <div>
+                <h2>把一个目标，拆成每月的小计划</h2>
+                <p className="muted">
+                  填入旅行、购物或备用金预算，比较几种分期存款安排。
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => setShowCalculator((v) => !v)}
+              >
+                {showCalculator ? '收起计算器' : '打开分期存款计算器'}
+              </Button>
+            </div>
+            {showCalculator && (
+              <InstallmentCalculator
+                onCreate={(goal) => {
+                  const ok = commit({ ...book, goals: [...book.goals, goal] });
+                  if (ok) setShowCalculator(false);
+                  return ok;
+                }}
+              />
+            )}
             <div className="notice">
               <Bell size={17} />
               <span>
@@ -1094,7 +1198,7 @@ export default function Home() {
               </div>
             )}
             <p className="muted">
-              本预览版记录各计划的当前已存金额，可随时修改；暂不保存逐笔存取历史。请勿把同一笔存款分配给多个目标。
+              分期完成状态会随备份保存。普通存入/取出暂不保留逐笔历史；请勿把同一笔存款分配给多个目标。
             </p>
           </>
         )}
@@ -1109,15 +1213,52 @@ export default function Home() {
                     : '记一笔支出'}
               </span>
               <span className="entry-date">
-                {edit
-                  ? edit.date +
-                    ' ' +
-                    (edit.time ?? '未记录时间') +
-                    ' · 保留原时间'
-                  : (clockDate || '今天') + ' · 自动记录当前时间'}
+                {historical
+                  ? '补记模式 · 按下方日期保存'
+                  : edit
+                    ? edit.date +
+                      ' ' +
+                      (edit.time ?? '未记录时间') +
+                      ' · 保留原时间'
+                    : (clockDate || '今天') + ' · 自动记录当前时间'}
               </span>
             </div>
             <form key={entrySession} onSubmit={saveEntry}>
+              <div className="history-option">
+                <label className="history-toggle">
+                  <Checkbox
+                    checked={historical}
+                    onCheckedChange={setHistorical}
+                  />
+                  特殊选项：补记历史账目 / 修改日期
+                </label>
+                {historical && (
+                  <div className="history-fields">
+                    <label>
+                      账目日期
+                      <Input
+                        type="date"
+                        name="historyDate"
+                        required
+                        min="1900-01-01"
+                        max={today()}
+                        defaultValue={edit?.date ?? today()}
+                      />
+                    </label>
+                    <label>
+                      具体时间（选填）
+                      <Input
+                        type="time"
+                        name="historyTime"
+                        defaultValue={edit?.time ?? ''}
+                      />
+                    </label>
+                    <p className="muted">
+                      保存到指定日期，并自动归入对应年月日统计。忘记时间可以留空，不会补成当前时间。
+                    </p>
+                  </div>
+                )}
+              </div>
               <label className="amount-label" htmlFor="quick-amount">
                 {kind === 'income' ? '这次收入多少？' : '这次花了多少？'}
               </label>

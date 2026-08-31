@@ -1546,3 +1546,148 @@ select:focus-visible {
     padding-right: 12px;
   }
 }
+.history-option {
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: var(--theme-soft);
+  border-radius: 12px;
+}
+.history-toggle,
+.goal-complete-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.history-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-top: 16px;
+}
+.history-fields > p {
+  grid-column: 1/-1;
+  margin: 0;
+}
+.history-fields input {
+  background: white;
+}
+.calculator-entry {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  padding: 22px;
+  background: var(--theme-soft);
+  border-radius: 14px;
+  margin-bottom: 22px;
+}
+.calculator-entry p {
+  margin-bottom: 0;
+}
+.calculator .form-grid {
+  margin-top: 24px;
+}
+.plan-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+.plan-option {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  background: var(--background);
+}
+.plan-option > strong {
+  display: block;
+  font-size: 24px;
+  margin: 20px 0 10px;
+}
+.plan-option strong small {
+  font-size: 11px;
+  font-weight: 400;
+}
+.plan-option > p {
+  font-size: 12px;
+}
+.plan-option summary,
+.installment-list summary {
+  cursor: pointer;
+  color: var(--theme-strong);
+  font-size: 12px;
+  padding: 10px 0;
+}
+.plan-option ol {
+  font-size: 11px;
+  padding-left: 0;
+  list-style: none;
+  line-height: 2;
+  max-height: 200px;
+  overflow: auto;
+}
+.installment-list {
+  margin: 18px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+.installment-rows {
+  max-height: 320px;
+  overflow: auto;
+  padding: 3px 4px;
+}
+.installment-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.installment-row > span {
+  flex: 1;
+}
+.installment-row small {
+  display: block;
+  font-size: 10px;
+  color: #8a9485;
+}
+.installment-row b {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.installment-row.is-done {
+  color: var(--theme-mid);
+}
+.goal-complete-toggle {
+  margin-top: 18px;
+}
+.installment-row > [data-slot='checkbox'] {
+  flex-shrink: 0;
+}
+@media (max-width: 1050px) {
+  .plan-options {
+    grid-template-columns: 1fr;
+  }
+  .plan-option {
+    display: block;
+  }
+}
+@media (max-width: 700px) {
+  .calculator-entry {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .history-fields {
+    grid-template-columns: 1fr;
+  }
+  .installment-row {
+    gap: 8px;
+  }
+  .installment-row > small {
+    display: none;
+  }
+}

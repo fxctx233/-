@@ -10,7 +10,99 @@ import {
   remaining,
   monthsLeft,
   demoBook,
+  makeInstallments,
+  toggleInstallment,
+  entryMoment,
 } from './ledger.ts';
+
+test('historical entries retain selected date, optional time, and aggregate correctly', () => {
+  const now = new Date(2026, 7, 31, 10, 24);
+  assert.deepEqual(entryMoment(null, null, '', now), {
+    date: '2026-08-31',
+    time: '10:24',
+  });
+  assert.deepEqual(entryMoment(null, '2025-12-31', '', now), {
+    date: '2025-12-31',
+  });
+  const b = emptyBook();
+  b.entries = [
+    {
+      id: 'past',
+      kind: 'expense',
+      category: '餐饮',
+      cents: 2000,
+      note: '补记',
+      ...entryMoment(null, '2025-12-31', '18:30', now),
+    },
+  ];
+  assert.equal(totals(periodEntries(b, 'year', '2025-01-01')).expense, 2000);
+  assert.equal(totals(periodEntries(b, 'month', '2026-08-01')).expense, 0);
+  assert.deepEqual(entryMoment(b.entries[0], null, '', now), {
+    date: '2025-12-31',
+    time: '18:30',
+  });
+  assert.throws(() => entryMoment(null, '2026-09-01', '', now));
+  assert.throws(() => entryMoment(null, '2026-02-30', '', now));
+});
+test('installment plans conserve cents and handle month-end and cross-year dates', () => {
+  const monthly = makeInstallments(500000, '2026-08-31', 'monthly', 100000);
+  assert.equal(monthly.length, 5);
+  assert.equal(monthly[1].date, '2026-09-30');
+  assert.equal(monthly[2].date, '2026-10-31');
+  assert.equal(
+    monthly.reduce((s, p) => s + p.cents, 0),
+    500000,
+  );
+  const two = makeInstallments(500000, '2026-12-31', 'months', 2);
+  assert.deepEqual(
+    two.map((p) => p.cents),
+    [250000, 250000],
+  );
+  assert.equal(two[1].date, '2027-01-31');
+  const odd = makeInstallments(500000, '2024-01-31', 'months', 3);
+  assert.equal(odd[1].date, '2024-02-29');
+  assert.equal(
+    odd.reduce((s, p) => s + p.cents, 0),
+    500000,
+  );
+  assert.deepEqual(
+    makeInstallments(250, '2026-01-01', 'monthly', 100).map((p) => p.cents),
+    [100, 100, 50],
+  );
+  for (const n of [0, -1, 1.5, 121])
+    assert.throws(() => makeInstallments(500000, '2026-01-01', 'months', n));
+});
+test('checking installments is reversible, idempotent, and preserved by backup', () => {
+  const b = emptyBook();
+  const g = {
+    id: 'trip',
+    name: '旅行',
+    target: 500000,
+    saved: 100000,
+    deadline: '2026-12-31',
+    installments: makeInstallments(400000, '2026-08-31', 'months', 2),
+  };
+  const done = toggleInstallment(g, 'period-1', true);
+  assert.equal(done.saved, 300000);
+  assert.equal(toggleInstallment(done, 'period-1', true).saved, 300000);
+  const undone = toggleInstallment(
+    { ...done, completed: true },
+    'period-1',
+    false,
+  );
+  assert.equal(undone.saved, 100000);
+  assert.equal(undone.completed, false);
+  b.goals = [{ ...done, completed: true }];
+  assert.deepEqual(validateBook(JSON.parse(JSON.stringify(b))), b);
+  const invalid = structuredClone(b);
+  invalid.goals[0].saved = 0;
+  assert.throws(() => validateBook(invalid));
+  const duplicate = structuredClone(b);
+  duplicate.goals[0].installments!.push({
+    ...duplicate.goals[0].installments![0],
+  });
+  assert.throws(() => validateBook(duplicate));
+});
 test('money uses integer cents and rejects invalid or excessive precision', () => {
   assert.equal(cents('0.10') + cents('0.20'), 30);
   assert.equal(cents('1234.56'), 123456);

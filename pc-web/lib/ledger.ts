@@ -14,7 +14,91 @@ export type Goal = {
   target: number;
   saved: number;
   deadline: string;
+  installments?: Installment[];
+  completed?: boolean;
 };
+export type Installment = {
+  id: string;
+  date: string;
+  cents: number;
+  done: boolean;
+};
+
+export function makeInstallments(
+  total: number,
+  start: string,
+  mode: 'monthly' | 'months',
+  value: number,
+): Installment[] {
+  if (
+    !Number.isSafeInteger(total) ||
+    total <= 0 ||
+    total > 99999999999 ||
+    !validDate(start) ||
+    !Number.isSafeInteger(value) ||
+    value <= 0
+  )
+    throw new Error('请填写有效的金额、期数和开始日期。');
+  const count = mode === 'monthly' ? Math.ceil(total / value) : value;
+  if (count > 120 || count > total)
+    throw new Error('请将分期设为 1–120 期，且每期至少 0.01 元。');
+  let left = total;
+  return Array.from({ length: count }, (_, i) => {
+    const monthIndex =
+      Number(start.slice(0, 4)) * 12 + Number(start.slice(5, 7)) - 1 + i;
+    const y = Math.floor(monthIndex / 12),
+      m = (monthIndex % 12) + 1;
+    const day = Math.min(
+      Number(start.slice(8, 10)),
+      new Date(Date.UTC(y, m, 0)).getUTCDate(),
+    );
+    const date = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (!validDate(date)) throw new Error('分期日期超出支持范围。');
+    const amount =
+      mode === 'monthly'
+        ? Math.min(left, value)
+        : Math.floor(total / count) + (i < total % count ? 1 : 0);
+    left -= amount;
+    return { id: `period-${i + 1}`, date, cents: amount, done: false };
+  });
+}
+export function installmentPaid(g: Goal) {
+  return (g.installments ?? [])
+    .filter((p) => p.done)
+    .reduce((s, p) => s + p.cents, 0);
+}
+export function toggleInstallment(g: Goal, id: string, done: boolean): Goal {
+  const p = g.installments?.find((p) => p.id === id);
+  if (!p || p.done === done) return g;
+  const saved = g.saved + (done ? p.cents : -p.cents);
+  if (saved < 0 || saved > 99999999999)
+    throw new Error('更新后的已存金额超出范围。');
+  return {
+    ...g,
+    saved,
+    completed: false,
+    installments: g.installments!.map((p) =>
+      p.id === id ? { ...p, done } : p,
+    ),
+  };
+}
+export function entryMoment(
+  original: Entry | null,
+  customDate: string | null,
+  customTime: string,
+  now = new Date(),
+): { date: string; time?: string } {
+  if (customDate !== null) {
+    if (!validDate(customDate) || customDate > today(now))
+      throw new Error('补记日期不能晚于今天。');
+    if (customTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(customTime))
+      throw new Error('请填写有效时间。');
+    return { date: customDate, ...(customTime ? { time: customTime } : {}) };
+  }
+  return original
+    ? { date: original.date, ...(original.time ? { time: original.time } : {}) }
+    : { date: today(now), time: currentTime(now) };
+}
 export type Book = {
   version: 1;
   entries: Entry[];
@@ -152,6 +236,34 @@ export function validateBook(raw: unknown): Book {
     )
       throw new Error('存款计划数据无效。');
     ids.add(g.id);
+    if (g.completed !== undefined && typeof g.completed !== 'boolean')
+      throw new Error('计划完成状态无效。');
+    if (g.installments !== undefined) {
+      if (
+        !Array.isArray(g.installments) ||
+        !g.installments.length ||
+        g.installments.length > 120
+      )
+        throw new Error('分期安排数量无效。');
+      const periodIds = new Set<string>();
+      for (const p of g.installments) {
+        if (
+          !p ||
+          !text(p.id, 100) ||
+          periodIds.has(p.id) ||
+          !validDate(p.date) ||
+          !amount(p.cents) ||
+          p.cents === 0 ||
+          typeof p.done !== 'boolean'
+        )
+          throw new Error('分期安排数据无效。');
+        periodIds.add(p.id);
+      }
+      if (installmentPaid(g) > g.saved)
+        throw new Error(
+          '已存金额不能低于已勾选分期的合计。若需撤回该期存款，请先取消相应勾选。',
+        );
+    }
   }
   return {
     version: 1,
@@ -170,13 +282,26 @@ export function validateBook(raw: unknown): Book {
         note,
       }),
     ),
-    goals: x.goals.map(({ id, name, target, saved, deadline }) => ({
-      id,
-      name,
-      target,
-      saved,
-      deadline,
-    })),
+    goals: x.goals.map(
+      ({ id, name, target, saved, deadline, installments, completed }) => ({
+        id,
+        name,
+        target,
+        saved,
+        deadline,
+        ...(completed !== undefined ? { completed } : {}),
+        ...(installments !== undefined
+          ? {
+              installments: installments.map(({ id, date, cents, done }) => ({
+                id,
+                date,
+                cents,
+                done,
+              })),
+            }
+          : {}),
+      }),
+    ),
   };
 }
 export function demoBook(): Book {
