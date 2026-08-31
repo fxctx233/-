@@ -1,0 +1,333 @@
+.bill-importer {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.bill-importer > button {
+  justify-self: start;
+}
+.import-intro {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+}
+.import-intro h2 {
+  font-size: 24px;
+  margin: 16px 0 10px;
+}
+.import-privacy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--theme-strong);
+  font-size: 12px;
+  margin: 0;
+  grid-column: 1/-1;
+}
+.import-steps {
+  display: flex;
+  gap: 30px;
+  grid-column: 1/-1;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--theme-mid);
+  font-size: 12px;
+}
+.import-empty {
+  text-align: center;
+  padding: 50px 24px;
+}
+.import-empty > svg {
+  margin: 0 auto 20px;
+  color: var(--theme-mid);
+}
+.import-alert,
+.import-success {
+  padding: 16px 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.import-alert {
+  background: #fff2e6;
+  color: #8b4c24;
+  border: 1px solid #ecd0b9;
+}
+.import-success {
+  background: var(--theme-soft);
+  color: var(--theme-strong);
+  border: 1px solid var(--border);
+}
+.import-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.import-stats > div {
+  background: white;
+  border: 1px solid var(--border);
+  padding: 22px;
+  border-radius: 16px;
+}
+.import-stats strong {
+  display: block;
+  font-size: clamp(19px, 2vw, 29px);
+  padding: 10px 0;
+  font-variant-numeric: tabular-nums;
+}
+.import-stats small {
+  font-size: 12px;
+  color: #677166;
+}
+.import-stats i {
+  font-style: normal;
+  font-size: 12px;
+  margin-left: 8px;
+}
+.import-explanation {
+  font-size: 13px;
+  line-height: 1.9;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.import-explanation summary {
+  cursor: pointer;
+  color: var(--theme-strong);
+}
+.import-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.import-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+}
+.import-sources span {
+  font-size: 12px;
+  color: var(--theme-strong);
+}
+.import-spending {
+  margin: 20px 0;
+  padding: 20px;
+  background: var(--theme-soft);
+  border-radius: 12px;
+}
+.import-spending-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}
+.import-spending-grid h3 {
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+.import-spending-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.import-spending-row small {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.import-spending-bar {
+  height: 5px;
+  border-radius: 5px;
+  background: #ffffffa0;
+  grid-column: 1/-1;
+  overflow: hidden;
+}
+.import-spending-bar i {
+  display: block;
+  height: 100%;
+  background: var(--theme-mid);
+}
+@media (max-width: 700px) {
+  .import-spending-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+.import-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.import-quick small {
+  font-size: 11px;
+  color: #677166;
+}
+.import-filters {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.import-filters > input {
+  flex: 1;
+  min-width: 190px;
+}
+.import-filters label {
+  font-size: 11px;
+  display: grid;
+  gap: 5px;
+}
+.import-bulk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--theme-soft);
+  padding: 14px;
+  border-radius: 10px;
+  margin: 16px 0;
+}
+.import-bulk input {
+  max-width: 240px;
+  background: white;
+}
+.import-bulk > small {
+  flex-basis: 100%;
+  color: #657260;
+  font-size: 11px;
+}
+.import-table-wrap {
+  overflow: auto;
+  max-height: 720px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.import-table {
+  width: 100%;
+  min-width: 830px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.import-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f4f6f1;
+}
+.import-table th,
+.import-table td {
+  padding: 16px 12px;
+  vertical-align: top;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.import-table th:nth-child(1) {
+  width: 55px;
+}
+.import-table th:nth-child(2) {
+  width: 135px;
+}
+.import-table th:nth-child(4) {
+  width: 125px;
+}
+.import-table th:nth-child(5) {
+  width: 180px;
+}
+.import-table td small {
+  display: block;
+  font-size: 11px;
+  margin-top: 7px;
+  color: #737d6d;
+  line-height: 1.6;
+}
+.import-table td .import-reason {
+  color: #89622b;
+}
+.import-table td .import-product {
+  white-space: normal;
+}
+.import-table input,
+.import-table select {
+  width: 100%;
+  font-size: 12px;
+  background: white;
+  margin-bottom: 7px;
+}
+.import-table .import-remember {
+  font-size: 10px;
+}
+.import-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.import-caution {
+  background: #fffbf5;
+}
+.import-disabled {
+  background: #f3f3f1;
+  color: #797e77;
+}
+.import-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 12px;
+}
+.import-pagination > span {
+  margin-right: auto;
+}
+.import-confirm {
+  border-color: var(--theme-mid);
+}
+.import-final {
+  margin-top: 20px;
+  padding: 20px;
+  background: var(--theme-soft);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.activity-tag {
+  display: inline-block;
+  background: var(--theme-soft);
+  color: var(--theme-strong);
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  border-radius: 6px;
+  margin-right: 7px;
+  font-size: 11px;
+}
+@media (max-width: 900px) {
+  .import-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .import-intro {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 700px) {
+  .import-steps {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .import-stats > div {
+    padding: 16px;
+  }
+  .import-table-wrap {
+    max-height: 65vh;
+  }
+  .bill-importer .panel {
+    padding: 16px;
+  }
+}

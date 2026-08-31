@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InstallmentCalculator } from '@/components/installment-calculator';
+import { BillImporter } from '@/components/bill-importer';
 import { Progress } from '@/components/ui/progress';
 import { ChartContainer } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
@@ -32,12 +33,14 @@ import {
   Bus,
   House,
   ShoppingBag,
+  ShoppingCart,
   HeartPulse,
   Ellipsis,
   BriefcaseBusiness,
   TrendingUp,
   Landmark,
   Gift,
+  RotateCcw,
 } from 'lucide-react';
 import {
   type Book,
@@ -59,6 +62,14 @@ import {
   demoBook,
   entryMoment,
   toggleInstallment,
+  bulkUpdateEntries,
+  emptyEntryRanges,
+  filterEntryRanges,
+  sortEntries,
+  type EntrySort,
+  adjustCurrentFunds,
+  currentFunds,
+  applyFundsChange,
 } from '@/lib/ledger';
 type View =
   | 'overview'
@@ -68,6 +79,7 @@ type View =
   | 'entry'
   | 'goal'
   | 'deposit'
+  | 'import'
   | 'complete';
 const nav = [
   ['overview', '收支总览', LayoutDashboard],
@@ -88,6 +100,10 @@ const categoryIcons: Record<string, typeof Leaf> = {
   股票: TrendingUp,
   公积金: Landmark,
   奖金: Gift,
+  退款: RotateCcw,
+  转账: ArrowLeftRight,
+  工作需求: BriefcaseBusiness,
+  综合购物: ShoppingCart,
 };
 const categoryColors = [
   '#ba774b',
@@ -138,6 +154,13 @@ export default function Home() {
     [date, setDate] = useState(''),
     [filter, setFilter] = useState('all'),
     [query, setQuery] = useState('');
+  const [entryRanges, setEntryRanges] = useState(emptyEntryRanges);
+  const [fundsAction, setFundsAction] = useState<'set' | 'add' | 'subtract'>(
+    'set',
+  );
+  const [showExtraFilters, setShowExtraFilters] = useState(false);
+  const [entrySort, setEntrySort] = useState<EntrySort>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [error, setError] = useState(''),
     [message, setMessage] = useState(''),
     [edit, setEdit] = useState<Entry | null>(null),
@@ -145,6 +168,35 @@ export default function Home() {
     [kind, setKind] = useState<Kind>('expense'),
     [categoryKind, setCategoryKind] = useState<Kind>('expense');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [importOpened, setImportOpened] = useState(false);
+  const [confirmClearEntries, setConfirmClearEntries] = useState(false);
+  const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
+  const [bulkCategory, setBulkCategory] = useState('');
+  const [showBulkCategory, setShowBulkCategory] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [confirmUndoEntry, setConfirmUndoEntry] = useState(false);
+  const editingCompleted = useRef(false);
+  const entryReturn = useRef<{ view: View; scroll: number }>({
+    view: 'overview',
+    scroll: 0,
+  });
+  const entryReturnFilters = useRef({ mode, date, filter, query, entryRanges });
+  const returnScroll = useRef<number | null>(null);
+  useEffect(() => {
+    if (returnScroll.current === null) return;
+    const top = returnScroll.current;
+    returnScroll.current = null;
+    const frame = requestAnimationFrame(() =>
+      window.scrollTo({ top, behavior: 'instant' }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [view]);
+  useEffect(() => {
+    setSelectedEntries([]);
+    setBulkCategory('');
+    setShowBulkCategory(false);
+    setConfirmBulkDelete(false);
+  }, [book, mode, date, filter, query, demo, entryRanges]);
   const [historical, setHistorical] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [completedEntry, setCompletedEntry] = useState<Entry | null>(null);
@@ -191,7 +243,8 @@ export default function Home() {
     const back = (event: Event) => {
       if (view !== 'overview') {
         event.preventDefault();
-        go('overview');
+        if (view === 'entry' || view === 'complete') returnFromEntry();
+        else go('overview');
       }
     };
     window.addEventListener('dailyLedgerBack', back);
@@ -221,6 +274,9 @@ export default function Home() {
     return () => window.removeEventListener('storage', handler);
   }, []);
   function go(v: View) {
+    setConfirmUndoEntry(false);
+    setConfirmClearEntries(false);
+    if (v === 'import') setImportOpened(true);
     window.scrollTo({ top: 0 });
     setView(v);
     setMessage('');
@@ -228,12 +284,12 @@ export default function Home() {
   }
   function commit(next: Book) {
     try {
-      validateBook(next);
+      const saved = applyFundsChange(book, next);
       if (!demo) {
         if (blocked) throw new Error('账本已暂停写入，请先恢复备份或刷新。');
-        deviceStorage.setItem(KEY, JSON.stringify(next));
+        deviceStorage.setItem(KEY, JSON.stringify(saved));
       }
-      setBook(next);
+      setBook(saved);
       setError('');
       setMessage(
         demo
@@ -253,6 +309,11 @@ export default function Home() {
     }
   }
   function addEntry(e?: Entry, nextKind: Kind = 'expense') {
+    if (view !== 'entry' && view !== 'complete') {
+      entryReturn.current = { view, scroll: window.scrollY };
+      entryReturnFilters.current = { mode, date, filter, query, entryRanges };
+    }
+    editingCompleted.current = !!e && view === 'complete';
     setHistorical(false);
     setEdit(e ?? null);
     setKind(e?.kind ?? nextKind);
@@ -260,9 +321,68 @@ export default function Home() {
     setEntrySession((n) => n + 1);
     go('entry');
   }
+  function returnFromEntry() {
+    if (view === 'entry' && editingCompleted.current) {
+      editingCompleted.current = false;
+      go('complete');
+      return;
+    }
+    const savedFilters = entryReturnFilters.current;
+    setMode(savedFilters.mode);
+    setDate(savedFilters.date);
+    setFilter(savedFilters.filter);
+    setQuery(savedFilters.query);
+    setEntryRanges(savedFilters.entryRanges);
+    setConfirmUndoEntry(false);
+    returnScroll.current = entryReturn.current.scroll;
+    setView(entryReturn.current.view);
+    setError('');
+  }
+  function undoCompletedEntry() {
+    if (!completedEntry || !ready || (blocked && !demo)) return;
+    const existing = book.entries.find((e) => e.id === completedEntry.id);
+    if (!existing) {
+      setError('这笔账目已不存在，没有重复撤销。');
+      return;
+    }
+    if (
+      commit({
+        ...book,
+        entries: book.entries.filter((e) => e.id !== existing.id),
+      })
+    ) {
+      editingCompleted.current = false;
+      setCompletedEntry(null);
+      setEdit(null);
+      returnFromEntry();
+      setMessage(
+        `已撤销本笔${existing.kind === 'expense' ? '支出' : '收入'} ${money(existing.cents)}，资金总额已同步恢复，其他账目不受影响。`,
+      );
+    }
+  }
   function addGoal(g?: Goal) {
     setGoalEdit(g ?? null);
     go('goal');
+  }
+  function clearAllEntries() {
+    if (!ready || blocked || demo || !book.entries.length) return;
+    try {
+      // Abort without deleting anything if the safety copy cannot be saved.
+      deviceStorage.setItem(KEY + '-before-clear', JSON.stringify(book));
+      if (!commit({ ...book, entries: [] })) return;
+      setImportOpened(false);
+      setEdit(null);
+      setCompletedEntry(null);
+      setPending(null);
+      setConfirmClearEntries(false);
+      setMessage(
+        '全部收支账目已清空，分类、商家规则、配色和存款计划保留。清空前副本已保存在当前浏览器，可导出恢复。',
+      );
+    } catch {
+      setError(
+        '无法保存清空前副本，未删除任何账目。请先导出备份并检查存储空间。',
+      );
+    }
   }
   function download(data: unknown, name = '日常记账备份') {
     if (isAndroidApp()) {
@@ -310,6 +430,7 @@ export default function Home() {
         throw new Error('点一个圆形按钮，选择这笔账目的分类。');
       const now = new Date();
       const entry: Entry = {
+        ...edit,
         id: edit?.id ?? crypto.randomUUID(),
         ...entryMoment(
           edit,
@@ -321,17 +442,34 @@ export default function Home() {
         category: selectedCategory,
         cents: amount,
         note: String(f.get('note') ?? '').trim(),
+        activity: ((f.get('activity') as string) ?? '').trim(),
       };
       if (!validDate(entry.date)) throw new Error('日期无效。');
       const entries = edit
         ? book.entries.map((r) => (r.id === edit.id ? entry : r))
         : [entry, ...book.entries];
       if (commit({ ...book, entries })) {
+        if (edit) {
+          if (editingCompleted.current) {
+            editingCompleted.current = false;
+            setCompletedEntry(entry);
+            setConfirmUndoEntry(false);
+            setView('complete');
+            window.scrollTo({ top: 0 });
+            return;
+          }
+          returnFromEntry();
+          setMessage(
+            '已保存修改，并返回原来的筛选列表。改为其他分类的账目会从当前筛选中移出。',
+          );
+          return;
+        }
         setDate(entry.date);
         setCompletedEntry(entry);
         setView('complete');
         setFilter('all');
         setQuery('');
+        setEntryRanges(emptyEntryRanges());
       }
     } catch (e) {
       setError((e as Error).message);
@@ -419,15 +557,91 @@ export default function Home() {
     }
   }
   const period = periodEntries(book, mode, date),
-    sum = totals(period),
-    shown = period
-      .filter(
-        (e) =>
-          (filter === 'all' || e.kind === filter || e.category === filter) &&
-          `${e.note} ${e.category}`.includes(query),
-      )
-      .sort((a, b) => b.date.localeCompare(a.date));
+    sum = totals(period);
+  let rangeError = '';
+  let rangeEntries = period;
+  if (view === 'ledger') {
+    try {
+      rangeEntries = filterEntryRanges(
+        entryRanges.dateFrom || entryRanges.dateTo ? book.entries : period,
+        entryRanges,
+      );
+    } catch (e) {
+      rangeError = (e as Error).message;
+      rangeEntries = [];
+    }
+  }
+  const shown = sortEntries(
+    rangeEntries.filter(
+      (e) =>
+        (filter === 'all' || e.kind === filter || e.category === filter) &&
+        `${e.note} ${e.category} ${e.activity ?? ''}`.includes(query),
+    ),
+    view === 'ledger' ? entrySort : 'date',
+    view === 'ledger' ? sortDirection : 'desc',
+  );
   const prefix = mode === 'year' ? '年' : mode === 'month' ? '月' : '日';
+  const typeFilterLabel =
+    filter === 'all'
+      ? '全部收支'
+      : filter === 'income'
+        ? '全部收入'
+        : filter === 'expense'
+          ? '全部支出'
+          : filter;
+  const extraFilterCount =
+    Object.values(entryRanges).filter((v) => v.trim()).length + Number(!!query);
+  const extraFilterSummary = [
+    entryRanges.dateFrom || entryRanges.dateTo
+      ? `日期 ${entryRanges.dateFrom || '不限'} 至 ${entryRanges.dateTo || '不限'}`
+      : '',
+    entryRanges.timeFrom || entryRanges.timeTo
+      ? `每天 ${entryRanges.timeFrom || '不限'} 至 ${entryRanges.timeTo || '不限'}`
+      : '',
+    entryRanges.amountMin || entryRanges.amountMax
+      ? `金额 ${entryRanges.amountMin || '不限'} 至 ${entryRanges.amountMax || '不限'} 元`
+      : '',
+    query ? `搜索「${query}」` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const selectedSet = new Set(selectedEntries);
+  const selectedRows = shown.filter((e) => selectedSet.has(e.id));
+  const bulkCategories = Array.from(
+    new Set([...book.categories.expense, ...book.categories.income]),
+  );
+  const bulkCategoryCompatible =
+    bulkCategories.includes(bulkCategory) &&
+    selectedRows.every((e) => book.categories[e.kind].includes(bulkCategory));
+  function toggleEntrySelection(id: string, checked: boolean) {
+    setSelectedEntries((ids) =>
+      checked ? [...new Set([...ids, id])] : ids.filter((x) => x !== id),
+    );
+    setConfirmBulkDelete(false);
+  }
+  function applyBulkEntries(
+    action: { type: 'delete' } | { type: 'category'; category: string },
+  ) {
+    if (!ready || (blocked && !demo)) return;
+    try {
+      const next = bulkUpdateEntries(
+        book,
+        selectedRows.map((e) => e.id),
+        action,
+      );
+      if (!demo)
+        deviceStorage.setItem(KEY + '-before-bulk', JSON.stringify(book));
+      if (commit(next)) {
+        setSelectedEntries([]);
+        setConfirmBulkDelete(false);
+        setMessage(
+          `已${action.type === 'delete' ? '删除' : '修改分类'} ${selectedRows.length} 笔账目，当前筛选条件保留。${demo ? '未改动真实账本。' : '操作前副本可在分类与备份中导出。'}`,
+        );
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   const unfinished = book.goals.filter(
     (g) => !(g.completed ?? remaining(g) === 0),
   );
@@ -477,21 +691,23 @@ export default function Home() {
   const title =
     view === 'overview'
       ? '每一笔，都离目标更近。'
-      : view === 'ledger'
-        ? '生活的账，一笔一笔记。'
-        : view === 'goals'
-          ? '把愿望，慢慢存成现实。'
-          : view === 'settings'
-            ? '你的账本，由你保管。'
-            : view === 'entry'
-              ? edit
-                ? '修改这笔账目'
-                : '记下今天的一笔'
-              : view === 'goal'
-                ? goalEdit
-                  ? '调整你的存款计划'
-                  : '给愿望定一个目标'
-                : '为目标再近一步';
+      : view === 'import'
+        ? '整理账单，轻松补齐记录。'
+        : view === 'ledger'
+          ? '生活的账，一笔一笔记。'
+          : view === 'goals'
+            ? '把愿望，慢慢存成现实。'
+            : view === 'settings'
+              ? '你的账本，由你保管。'
+              : view === 'entry'
+                ? edit
+                  ? '修改这笔账目'
+                  : '记下今天的一笔'
+                : view === 'goal'
+                  ? goalEdit
+                    ? '调整你的存款计划'
+                    : '给愿望定一个目标'
+                  : '为目标再近一步';
   function goalCard(g: Goal, compact = false) {
     const left = remaining(g),
       months = monthsLeft(g);
@@ -647,7 +863,8 @@ export default function Home() {
               key={id}
               className={
                 view === id ||
-                (id === 'ledger' && ['entry', 'complete'].includes(view)) ||
+                (id === 'ledger' &&
+                  ['entry', 'complete', 'import'].includes(view)) ||
                 (id === 'goals' && ['goal', 'deposit'].includes(view))
                   ? 'active'
                   : ''
@@ -760,6 +977,81 @@ export default function Home() {
               看看示例账本
             </Button>
           </div>
+        )}
+        {view === 'overview' && (
+          <section className="panel current-funds" aria-label="当前资金总额">
+            <div className="current-funds-total">
+              <h2>当前资金总额</h2>
+              <strong>{money(currentFunds(book))}</strong>
+              <p className="muted">
+                {book.currentFunds === undefined
+                  ? '暂按已有收支净额计算，可设置为你的实际余额。'
+                  : '支出自动扣减，收入自动增加；可手动校准。'}
+              </p>
+            </div>
+            <form
+              key={demo ? 'demo-funds' : 'real-funds'}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!ready || (blocked && !demo)) return;
+                const form = e.currentTarget;
+                try {
+                  const rawAmount = String(
+                    new FormData(form).get('fundsAmount'),
+                  ).trim();
+                  const value =
+                    fundsAction === 'set' && rawAmount.startsWith('-')
+                      ? -cents(rawAmount.slice(1))
+                      : cents(rawAmount);
+                  const next = adjustCurrentFunds(book, fundsAction, value);
+                  if (commit(next)) {
+                    form.reset();
+                    setMessage(
+                      `当前资金总额已调整为 ${money(next.currentFunds!)}。${demo ? '示例调整不影响真实账本。' : '已保存到本地，不会新增收支账目。'}`,
+                    );
+                  }
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              <label>
+                调整方式
+                <select
+                  aria-label="资金调整方式"
+                  value={fundsAction}
+                  onChange={(e) =>
+                    setFundsAction(e.target.value as 'set' | 'add' | 'subtract')
+                  }
+                >
+                  <option value="set">直接设置总额</option>
+                  <option value="add">增加资金</option>
+                  <option value="subtract">减少资金</option>
+                </select>
+              </label>
+              <label>
+                金额（元）
+                <Input
+                  name="fundsAmount"
+                  aria-label="资金调整金额"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  required
+                />
+              </label>
+              <Button type="submit" disabled={!ready || (blocked && !demo)}>
+                确认调整余额
+              </Button>
+            </form>
+            <p className="muted current-funds-note">
+              新增、补记或导入收支会同步增减余额；修改按差额调整，删除或撤销会反向调整。改分类和存款计划不重复扣款。手动设置用于校准实际余额，历史账目不会再扣一遍；恢复完整备份直接使用备份余额。
+            </p>
+            {currentFunds(book) < 0 && (
+              <p className="negative current-funds-note">
+                余额为负：可能是资金不足或尚未设置初始余额，可在上方校准；不会阻止你记录真实支出。
+              </p>
+            )}
+          </section>
         )}
         {['overview', 'ledger'].includes(view) && (
           <>
@@ -1004,38 +1296,290 @@ export default function Home() {
           <section className="panel">
             <div className="toolbar">
               <h2>{view === 'overview' ? '最近账目' : '账单明细'}</h2>
+              {!isAndroidApp() && (
+                <Button
+                  variant="outline"
+                  disabled={!ready || blocked || demo}
+                  onClick={() => go('import')}
+                >
+                  <Upload />
+                  导入支付账单
+                </Button>
+              )}
               {view === 'overview' ? (
                 <Button variant="ghost" onClick={() => go('ledger')}>
                   查看全部 →
                 </Button>
               ) : (
-                <div className="flex">
-                  <select
-                    aria-label="分类筛选"
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
+                <div className="ledger-filter-actions">
+                  <Button
+                    variant={extraFilterCount ? 'secondary' : 'outline'}
+                    aria-expanded={showExtraFilters}
+                    aria-controls="ledger-extra-filters"
+                    onClick={() => setShowExtraFilters((v) => !v)}
                   >
-                    <option value="all">全部收支</option>
-                    <option value="income">全部收入</option>
-                    <option value="expense">全部支出</option>
-                    {Array.from(
-                      new Set([
-                        ...book.categories.expense,
-                        ...book.categories.income,
-                      ]),
-                    ).map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
-                  <Input
-                    aria-label="搜索备注或分类"
-                    placeholder="搜索备注或分类"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
+                    筛选条件{extraFilterCount ? `（${extraFilterCount}）` : ''}{' '}
+                    · {showExtraFilters ? '收起' : '展开'}
+                  </Button>
                 </div>
               )}
             </div>
+            {view === 'ledger' && (
+              <section
+                id="ledger-type-filters"
+                className="ledger-type-filters"
+                aria-label="订单类型筛选"
+              >
+                <div className="ledger-type-buttons">
+                  {(
+                    [
+                      ['all', '全部收支'],
+                      ['expense', '全部支出'],
+                      ['income', '全部收入'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      variant={filter === value ? 'secondary' : 'outline'}
+                      aria-pressed={filter === value}
+                      onClick={() => setFilter(value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                  {Array.from(
+                    new Set([
+                      ...book.categories.expense,
+                      ...book.categories.income,
+                    ]),
+                  ).map((c) => (
+                    <Button
+                      key={c}
+                      variant={filter === c ? 'secondary' : 'outline'}
+                      aria-pressed={filter === c}
+                      onClick={() => setFilter(c)}
+                    >
+                      {c}
+                    </Button>
+                  ))}
+                </div>
+                <p className="muted">
+                  点击类型只查看该类订单，再排序或批量修改。类型较多时可横向滚动查看。
+                </p>
+              </section>
+            )}
+            {view === 'ledger' && (
+              <div className="ledger-sort" aria-label="账单排序设置">
+                <label>
+                  排序方式{' '}
+                  <select
+                    aria-label="订单排序方式"
+                    value={entrySort}
+                    onChange={(e) => setEntrySort(e.target.value as EntrySort)}
+                  >
+                    <option value="date">按照订单日期</option>
+                    <option value="time">按照订单时间（每天时分秒）</option>
+                    <option value="amount">按照订单金额</option>
+                  </select>
+                </label>
+                <label>
+                  顺序{' '}
+                  <select
+                    aria-label="订单排序顺序"
+                    value={sortDirection}
+                    onChange={(e) =>
+                      setSortDirection(e.target.value as 'asc' | 'desc')
+                    }
+                  >
+                    <option value="desc">
+                      {entrySort === 'amount' ? '金额从大到小' : '从晚到早'}
+                    </option>
+                    <option value="asc">
+                      {entrySort === 'amount' ? '金额从小到大' : '从早到晚'}
+                    </option>
+                  </select>
+                </label>
+                <span className="muted">
+                  {entrySort === 'time'
+                    ? '按每天的时间先后排列，不按日期分组；未知时间排在最后。'
+                    : entrySort === 'amount'
+                      ? '按单笔金额大小排序，收入和支出均比较正数金额。'
+                      : '按年月日先后排列，同一天内按时间排序。'}{' '}
+                  排序不改变账目或勾选，编辑返回后保留。
+                </span>
+              </div>
+            )}
+            {view === 'ledger' && showExtraFilters && (
+              <section
+                id="ledger-extra-filters"
+                className="ledger-ranges"
+                aria-label="日期时间金额筛选"
+              >
+                <label className="ledger-search-label">
+                  搜索备注、分类或活动
+                  <Input
+                    aria-label="搜索备注、分类或活动"
+                    placeholder="例如：午餐、超市、旅行"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </label>
+                <div className="ledger-range-fields">
+                  <label>
+                    开始日期
+                    <Input
+                      aria-label="账单开始日期"
+                      type="date"
+                      min="1900-01-01"
+                      max="9999-12-31"
+                      value={entryRanges.dateFrom}
+                      onInput={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          dateFrom: e.currentTarget.value,
+                        })
+                      }
+                      onChange={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          dateFrom: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    结束日期
+                    <Input
+                      aria-label="账单结束日期"
+                      type="date"
+                      min="1900-01-01"
+                      max="9999-12-31"
+                      value={entryRanges.dateTo}
+                      onInput={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          dateTo: e.currentTarget.value,
+                        })
+                      }
+                      onChange={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          dateTo: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    每天开始时间
+                    <Input
+                      aria-label="账单开始时间"
+                      type="time"
+                      step="60"
+                      value={entryRanges.timeFrom}
+                      onInput={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          timeFrom: e.currentTarget.value,
+                        })
+                      }
+                      onChange={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          timeFrom: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    每天结束时间
+                    <Input
+                      aria-label="账单结束时间"
+                      type="time"
+                      step="60"
+                      value={entryRanges.timeTo}
+                      onInput={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          timeTo: e.currentTarget.value,
+                        })
+                      }
+                      onChange={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          timeTo: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    最低金额（元）
+                    <Input
+                      aria-label="账单最低金额"
+                      inputMode="decimal"
+                      placeholder="不限"
+                      value={entryRanges.amountMin}
+                      onChange={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          amountMin: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    最高金额（元）
+                    <Input
+                      aria-label="账单最高金额"
+                      inputMode="decimal"
+                      placeholder="不限"
+                      value={entryRanges.amountMax}
+                      onChange={(e) =>
+                        setEntryRanges({
+                          ...entryRanges,
+                          amountMax: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+                <p className="muted">
+                  日期范围可跨月、跨年；填写任一日期后，明细改为在全部账目中筛选，否则沿用上方年月日。上方统计卡片仍按所选年月日统计，筛选后的金额见下方汇总。
+                </p>
+                <p className="muted">
+                  时间按每天的时段筛选，包含起止分钟；未记录时间的账目不会命中时间筛选。金额按单笔金额比较，收入和支出均填正数，包含上下限。留空表示不限。
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => setEntryRanges(emptyEntryRanges())}
+                >
+                  清除日期、时间和金额筛选
+                </Button>
+              </section>
+            )}
+            {view === 'ledger' && (
+              <div className="ledger-filter-summary">
+                <span>当前类型：{typeFilterLabel}</span>
+                {extraFilterSummary && (
+                  <span className="muted">{extraFilterSummary}</span>
+                )}
+                {!!extraFilterCount && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setEntryRanges(emptyEntryRanges());
+                      setQuery('');
+                    }}
+                  >
+                    清除附加筛选
+                  </Button>
+                )}
+                {rangeError && (
+                  <p role="alert" className="negative">
+                    {rangeError}
+                  </p>
+                )}
+              </div>
+            )}
             {view === 'ledger' && (
               <p className="muted">
                 筛选结果 {shown.length} 笔 · 收入 {money(totals(shown).income)}{' '}
@@ -1043,9 +1587,149 @@ export default function Home() {
               </p>
             )}
             <div className="table-wrap">
+              {view === 'ledger' && (
+                <div className="ledger-bulk">
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      aria-label="全选当前筛选账目"
+                      checked={
+                        shown.length > 0 && selectedRows.length === shown.length
+                      }
+                      indeterminate={
+                        selectedRows.length > 0 &&
+                        selectedRows.length < shown.length
+                      }
+                      disabled={!shown.length || !ready || (blocked && !demo)}
+                      onCheckedChange={(checked) => {
+                        setSelectedEntries(
+                          checked ? shown.map((e) => e.id) : [],
+                        );
+                        setConfirmBulkDelete(false);
+                      }}
+                    />
+                    全选筛选结果（{shown.length} 笔）
+                  </label>
+                  <span>已选 {selectedRows.length} 笔</span>
+                  <Button
+                    variant="secondary"
+                    disabled={!ready || (blocked && !demo)}
+                    aria-expanded={showBulkCategory}
+                    aria-controls="bulk-category-controls"
+                    onClick={() => {
+                      setShowBulkCategory((v) => !v);
+                      setConfirmBulkDelete(false);
+                    }}
+                  >
+                    批量修改订单类型
+                  </Button>
+                  {showBulkCategory && (
+                    <div
+                      id="bulk-category-controls"
+                      className="ledger-bulk-category"
+                    >
+                      <label>
+                        目标订单类型{' '}
+                        <select
+                          aria-label="目标订单类型"
+                          value={bulkCategory}
+                          onChange={(e) => setBulkCategory(e.target.value)}
+                        >
+                          <option value="">选择目标分类</option>
+                          {bulkCategories.map((c) => (
+                            <option key={c}>{c}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <Button
+                        disabled={
+                          !selectedRows.length ||
+                          !bulkCategoryCompatible ||
+                          !ready ||
+                          (blocked && !demo)
+                        }
+                        onClick={() =>
+                          applyBulkEntries({
+                            type: 'category',
+                            category: bulkCategory,
+                          })
+                        }
+                      >
+                        确认修改类型
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setShowBulkCategory(false)}
+                      >
+                        收起类型选择
+                      </Button>
+                      <span className="muted" role="status">
+                        {!selectedRows.length
+                          ? '可以先选择目标类型，再勾选要修改的账目。'
+                          : bulkCategory && !bulkCategoryCompatible
+                            ? '目标类型不适用于部分所选账目，请将收入和支出分别勾选，不会自动转换收支方向。'
+                            : bulkCategory
+                              ? `将把已选 ${selectedRows.length} 笔改为「${bulkCategory}」，点击确认后保存。`
+                              : '请选择目标类型，再确认修改。'}
+                      </span>
+                    </div>
+                  )}
+                  <Button
+                    variant="destructive"
+                    disabled={
+                      !selectedRows.length || !ready || (blocked && !demo)
+                    }
+                    onClick={() => setConfirmBulkDelete(true)}
+                  >
+                    批量删除
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={!selectedRows.length}
+                    onClick={() => {
+                      setSelectedEntries([]);
+                      setConfirmBulkDelete(false);
+                    }}
+                  >
+                    取消勾选
+                  </Button>
+                  <p className="muted">
+                    只处理已勾选的当前筛选账目；切换筛选会清除勾选，切换排序不会。订单类型指餐饮、购物等分类，批量修改不改变收支方向。
+                  </p>
+                  {confirmBulkDelete && (
+                    <div className="notice" role="alert">
+                      <p>
+                        确定删除已勾选的 {selectedRows.length} 笔账目？收入{' '}
+                        {money(totals(selectedRows).income)}，支出{' '}
+                        {money(totals(selectedRows).expense)}
+                        。未选中的账目不受影响。
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          variant="destructive"
+                          disabled={
+                            !selectedRows.length || !ready || (blocked && !demo)
+                          }
+                          onClick={() => applyBulkEntries({ type: 'delete' })}
+                        >
+                          确认删除所选账目
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setConfirmBulkDelete(false)}
+                        >
+                          取消删除
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <table>
                 <thead>
                   <tr>
+                    {view === 'ledger' && (
+                      <th className="record-select">选择</th>
+                    )}
                     <th>日期 / 时间</th>
                     <th>分类</th>
                     <th>备注</th>
@@ -1057,6 +1741,18 @@ export default function Home() {
                   {(view === 'overview' ? shown.slice(0, 5) : shown).map(
                     (e) => (
                       <tr key={e.id}>
+                        {view === 'ledger' && (
+                          <td className="record-select">
+                            <Checkbox
+                              aria-label={`选择账目 ${e.date} ${e.category} ${money(e.cents)} ${e.note || '无备注'}`}
+                              checked={selectedSet.has(e.id)}
+                              disabled={!ready || (blocked && !demo)}
+                              onCheckedChange={(checked) =>
+                                toggleEntrySelection(e.id, checked)
+                              }
+                            />
+                          </td>
+                        )}
                         <td className="record-date">
                           {e.date}
                           <small className="record-time">
@@ -1066,7 +1762,12 @@ export default function Home() {
                         <td className="record-category">
                           <span className="category">{e.category}</span>
                         </td>
-                        <td className="record-note">{e.note || '无备注'}</td>
+                        <td className="record-note">
+                          {e.activity && (
+                            <span className="activity-tag">{e.activity}</span>
+                          )}
+                          {e.note || '无备注'}
+                        </td>
                         <td
                           className={`money ${e.kind === 'income' ? 'positive' : 'negative'}`}
                         >
@@ -1128,6 +1829,58 @@ export default function Home() {
               ))}
             </div>
           </section>
+        )}
+        {view === 'ledger' && period.some((e) => e.activity) && (
+          <section className="panel">
+            <h2>所选期间 · 活动花费</h2>
+            <p className="muted">
+              活动可包含多种分类，与分类汇总是同一批账目的不同看法，不叠加计算。
+            </p>
+            <div className="category-summary">
+              {Array.from(
+                new Set(period.map((e) => e.activity).filter(Boolean)),
+              ).map((tag) => {
+                const t = totals(period.filter((e) => e.activity === tag));
+                return (
+                  <Button
+                    variant="outline"
+                    key={tag}
+                    onClick={() => {
+                      setQuery(tag!);
+                      setFilter('all');
+                    }}
+                  >
+                    {tag} · 支出 {money(t.expense)} · 收入 {money(t.income)}
+                  </Button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+        {importOpened && !isAndroidApp() && (
+          <div hidden={view !== 'import'}>
+            <BillImporter
+              book={book}
+              disabled={!ready || blocked}
+              demo={demo}
+              onBack={() => go('ledger')}
+              onBackup={() => download(book)}
+              onCommit={(next) => {
+                try {
+                  if (blocked || demo)
+                    throw new Error('请先恢复真实账本的正常写入状态。');
+                  deviceStorage.setItem(
+                    KEY + '-before-import',
+                    JSON.stringify(book),
+                  );
+                  return commit(next);
+                } catch (e) {
+                  setError((e as Error).message);
+                  return false;
+                }
+              }}
+            />
+          </div>
         )}
         {view === 'goals' && (
           <>
@@ -1287,7 +2040,14 @@ export default function Home() {
                 <div className="circle-category-grid">
                   {book.categories[kind].map((c, i) => {
                     const Icon = categoryIcons[c] ?? Ellipsis;
-                    const color = categoryColors[i % categoryColors.length];
+                    const color =
+                      (
+                        {
+                          转账: '#687bb5',
+                          工作需求: '#548e96',
+                          综合购物: '#b48744',
+                        } as Record<string, string>
+                      )[c] ?? categoryColors[i % categoryColors.length];
                     return (
                       <div className="circle-category-item" key={c}>
                         <Button
@@ -1322,6 +2082,16 @@ export default function Home() {
                 </div>
               </fieldset>
               <div className="round-confirm-area">
+                <label className="confirm-note" htmlFor="entry-activity">
+                  活动标签（可选）
+                  <Input
+                    id="entry-activity"
+                    name="activity"
+                    maxLength={60}
+                    placeholder="例如：西安旅行"
+                    defaultValue={edit?.activity ?? ''}
+                  />
+                </label>
                 <div className="confirm-note-row">
                   <label className="confirm-note">
                     备注（可选）
@@ -1347,12 +2117,12 @@ export default function Home() {
                     ? '已选「' + selectedCategory + '」 · 点一下，记录完成'
                     : '输入金额，选择分类，再点确认'}
                 </p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => go('overview')}
-                >
-                  取消记录
+                <Button type="button" variant="ghost" onClick={returnFromEntry}>
+                  {edit
+                    ? editingCompleted.current
+                      ? '返回记录完成页'
+                      : '返回原列表'
+                    : '取消记录'}
                 </Button>
               </div>
             </form>
@@ -1381,6 +2151,39 @@ export default function Home() {
                 : '已保存在本机，今天又认真记录了一笔。'}
             </p>
             <div className="completion-actions">
+              <Button variant="outline" onClick={returnFromEntry}>
+                <ArrowLeft />
+                返回
+              </Button>
+              <Button
+                variant="outline"
+                disabled={
+                  !ready ||
+                  (blocked && !demo) ||
+                  !book.entries.some((e) => e.id === completedEntry.id)
+                }
+                onClick={() => {
+                  const existing = book.entries.find(
+                    (e) => e.id === completedEntry.id,
+                  );
+                  if (existing) addEntry(existing);
+                }}
+              >
+                <Pencil />
+                手动修改
+              </Button>
+              <Button
+                variant="outline"
+                disabled={
+                  !ready ||
+                  (blocked && !demo) ||
+                  !book.entries.some((e) => e.id === completedEntry.id)
+                }
+                onClick={() => setConfirmUndoEntry(true)}
+              >
+                <RotateCcw />
+                撤销本笔
+              </Button>
               <Button onClick={() => addEntry(undefined, completedEntry.kind)}>
                 再记一笔
               </Button>
@@ -1388,6 +2191,30 @@ export default function Home() {
                 查看账单
               </Button>
             </div>
+            {confirmUndoEntry && (
+              <div className="completion-undo notice" role="alert">
+                <p>
+                  撤销这笔{completedEntry.kind === 'expense' ? '支出' : '收入'}{' '}
+                  {money(completedEntry.cents)}
+                  ？仅删除本笔，资金总额会同步恢复。
+                </p>
+                <div className="completion-actions">
+                  <Button
+                    variant="destructive"
+                    disabled={!ready || (blocked && !demo)}
+                    onClick={undoCompletedEntry}
+                  >
+                    确认撤销本笔
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirmUndoEntry(false)}
+                  >
+                    保留这笔记录
+                  </Button>
+                </div>
+              </div>
+            )}
           </section>
         )}
         {view === 'goal' && (
@@ -1508,6 +2335,122 @@ export default function Home() {
         )}
         {view === 'settings' && (
           <>
+            <section className="panel">
+              <h2>清空收支账目</h2>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  try {
+                    const raw = deviceStorage.getItem(KEY + '-before-bulk');
+                    if (raw) download(raw, '日常记账批量操作前备份');
+                    else setMessage('当前浏览器还没有批量操作前副本。');
+                  } catch {
+                    setError('无法读取批量操作前副本。');
+                  }
+                }}
+              >
+                导出批量操作前副本
+              </Button>
+              <p className="muted">
+                当前账本共 {book.entries.length}{' '}
+                笔收支记录。清空仅删除账目及其导入标记，保留分类、商家规则、配色和存款计划，可重新导入原始账单测试。
+              </p>
+              <p className="muted">
+                仅影响当前浏览器、当前网址的账本。其他 PC
+                浏览器、在线版和安卓版的数据各自独立，不会一起删除。
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="destructive"
+                  disabled={!ready || blocked || demo || !book.entries.length}
+                  onClick={() => setConfirmClearEntries(true)}
+                >
+                  <Trash2 />
+                  清空全部收支账目
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    try {
+                      const raw = deviceStorage.getItem(KEY + '-before-clear');
+                      if (raw) download(raw, '日常记账清空前备份');
+                      else setMessage('当前浏览器还没有清空前副本。');
+                    } catch {
+                      setError('无法读取清空前副本。');
+                    }
+                  }}
+                >
+                  <Download />
+                  导出清空前副本
+                </Button>
+              </div>
+              {confirmClearEntries && (
+                <div className="notice" role="alert">
+                  <p>
+                    确认删除全部 {book.entries.length}{' '}
+                    笔收支账目？会先保存一份本地副本，未保存的导入预览也会清除，原始
+                    CSV / XLSX 文件不受影响。
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="destructive"
+                      disabled={
+                        !ready || blocked || demo || !book.entries.length
+                      }
+                      onClick={clearAllEntries}
+                    >
+                      确认清空账目
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmClearEntries(false)}
+                    >
+                      取消清空
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </section>
+            {!isAndroidApp() && (
+              <section className="panel">
+                <h2>导入支付宝 / 微信账单</h2>
+                <p className="muted">
+                  CSV、XLSX
+                  在本地读取，预览分类后追加到账本，与下方“完整备份恢复”不同。
+                </p>
+                <Button
+                  disabled={!ready || blocked || demo}
+                  onClick={() => go('import')}
+                >
+                  <Upload />
+                  导入支付账单
+                </Button>
+                <p className="muted">
+                  已记住 {book.merchantRules?.length ?? 0}{' '}
+                  条商家分类规则。清除规则不会修改已有账目。
+                </p>
+                <Button
+                  variant="ghost"
+                  disabled={!book.merchantRules?.length}
+                  onClick={() => {
+                    if (confirm('清除所有已记住的商家分类规则？已有账目不变。'))
+                      commit({ ...book, merchantRules: [] });
+                  }}
+                >
+                  清除商家规则
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const raw = deviceStorage.getItem(KEY + '-before-import');
+                    if (raw) download(raw, '日常记账导入前备份');
+                    else setMessage('还没有导入前备份。');
+                  }}
+                >
+                  导出最近导入操作前的账本
+                </Button>
+              </section>
+            )}
             <section className="panel">
               <div className="toolbar">
                 <h2>分类管理</h2>

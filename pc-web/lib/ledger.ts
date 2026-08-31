@@ -7,6 +7,14 @@ export type Entry = {
   category: string;
   cents: number;
   note: string;
+  activity?: string;
+  importInfo?: {
+    source: 'wechat' | 'alipay';
+    key: string;
+    batch: string;
+    merchant: string;
+    timestamp?: string;
+  };
 };
 export type Goal = {
   id: string;
@@ -101,18 +109,94 @@ export function entryMoment(
 }
 export type Book = {
   version: 1;
+  currentFunds?: number;
   entries: Entry[];
   goals: Goal[];
   categories: Record<Kind, string[]>;
+  merchantRules?: {
+    source: 'wechat' | 'alipay';
+    merchant: string;
+    kind: Kind;
+    category: string;
+  }[];
 };
 export const KEY = 'xiaoman-ledger-v1';
+export function currentFunds(book: Book): number {
+  return book.currentFunds ?? totals(book.entries).balance;
+}
+export function applyFundsChange(previous: Book, next: Book): Book {
+  // Only apply the change in ledger net income. Existing entries are not charged again.
+  const delta = totals(next.entries).balance - totals(previous.entries).balance;
+  return validateBook({
+    ...next,
+    currentFunds: (next.currentFunds ?? currentFunds(previous)) + delta,
+  });
+}
+export function adjustCurrentFunds(
+  book: Book,
+  action: 'set' | 'add' | 'subtract',
+  amount: number,
+): Book {
+  if (
+    !Number.isSafeInteger(amount) ||
+    Math.abs(amount) > 99999999999 ||
+    (action !== 'set' && amount <= 0)
+  )
+    throw new Error('请填写有效金额；增加或减少资金时金额须大于零。');
+  const balance = currentFunds(book);
+  const next =
+    action === 'set'
+      ? amount
+      : action === 'add'
+        ? balance + amount
+        : balance - amount;
+  if (!Number.isSafeInteger(next) || Math.abs(next) > 99999999999)
+    throw new Error('调整后的资金总额超出支持范围。');
+  return validateBook({ ...book, currentFunds: next });
+}
+export function bulkUpdateEntries(
+  book: Book,
+  ids: string[],
+  action: { type: 'delete' } | { type: 'category'; category: string },
+): Book {
+  const selected = new Set(ids);
+  const matches = book.entries.filter((e) => selected.has(e.id));
+  if (!matches.length || matches.length !== selected.size)
+    throw new Error('所选账目已变化，请重新勾选。');
+  if (
+    action.type === 'category' &&
+    matches.some((e) => !book.categories[e.kind].includes(action.category))
+  ) {
+    throw new Error('此分类不适用于部分所选账目，请将收入和支出分别处理。');
+  }
+  return validateBook({
+    ...book,
+    entries:
+      action.type === 'delete'
+        ? book.entries.filter((e) => !selected.has(e.id))
+        : book.entries.map((e) =>
+            selected.has(e.id) ? { ...e, category: action.category } : e,
+          ),
+  });
+}
+const addedExpenseCategories = ['转账', '工作需求', '综合购物'];
 export const emptyBook = (): Book => ({
   version: 1,
   entries: [],
   goals: [],
   categories: {
-    expense: ['餐饮', '工具', '娱乐', '交通', '住房', '购物', '医疗', '其他'],
-    income: ['工资', '股票', '公积金', '奖金', '其他'],
+    expense: [
+      '餐饮',
+      '工具',
+      '娱乐',
+      '交通',
+      '住房',
+      '购物',
+      '医疗',
+      '其他',
+      ...addedExpenseCategories,
+    ],
+    income: ['工资', '股票', '公积金', '奖金', '退款', '其他'],
   },
 });
 export function today(d = new Date()) {
@@ -164,6 +248,89 @@ export function totals(entries: Entry[]) {
     .reduce((s, e) => s + e.cents, 0);
   return { income, expense, balance: income - expense };
 }
+export type EntrySort = 'date' | 'time' | 'amount';
+export function sortEntries(
+  entries: Entry[],
+  field: EntrySort,
+  direction: 'asc' | 'desc',
+): Entry[] {
+  const sign = direction === 'asc' ? 1 : -1;
+  const clock = (e: Entry) => {
+    if (!e.time) return '';
+    const original = e.importInfo?.timestamp;
+    return original &&
+      original.slice(0, 10) === e.date &&
+      original.slice(11, 16) === e.time
+      ? original.slice(11)
+      : e.time + ':00';
+  };
+  const compareTime = (a: Entry, b: Entry) => {
+    const at = clock(a),
+      bt = clock(b);
+    // Unknown times always follow known times, in either direction.
+    if (!at || !bt) return Number(!at) - Number(!bt);
+    return at.localeCompare(bt) * sign;
+  };
+  return [...entries].sort((a, b) => {
+    if (field === 'amount')
+      return (a.cents - b.cents) * sign || b.date.localeCompare(a.date);
+    if (field === 'time')
+      return compareTime(a, b) || b.date.localeCompare(a.date);
+    return a.date.localeCompare(b.date) * sign || compareTime(a, b);
+  });
+}
+export type EntryRanges = {
+  dateFrom: string;
+  dateTo: string;
+  timeFrom: string;
+  timeTo: string;
+  amountMin: string;
+  amountMax: string;
+};
+export const emptyEntryRanges = (): EntryRanges => ({
+  dateFrom: '',
+  dateTo: '',
+  timeFrom: '',
+  timeTo: '',
+  amountMin: '',
+  amountMax: '',
+});
+export function filterEntryRanges(
+  entries: Entry[],
+  range: EntryRanges,
+): Entry[] {
+  for (const value of [range.dateFrom, range.dateTo]) {
+    if (value && !validDate(value)) throw new Error('请填写有效的起止日期。');
+  }
+  if (range.dateFrom && range.dateTo && range.dateFrom > range.dateTo)
+    throw new Error('开始日期不能晚于结束日期。');
+  for (const value of [range.timeFrom, range.timeTo]) {
+    if (value && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value))
+      throw new Error('请填写有效的时间，精确到分钟。');
+  }
+  if (range.timeFrom && range.timeTo && range.timeFrom > range.timeTo)
+    throw new Error('开始时间不能晚于结束时间；跨午夜请分两次筛选。');
+  let min: number | undefined, max: number | undefined;
+  try {
+    if (range.amountMin.trim()) min = cents(range.amountMin.trim());
+    if (range.amountMax.trim()) max = cents(range.amountMax.trim());
+  } catch {
+    throw new Error('金额范围请填写非负数字，最多两位小数。');
+  }
+  if (min !== undefined && max !== undefined && min > max)
+    throw new Error('最低金额不能大于最高金额。');
+  return entries.filter(
+    (e) =>
+      (!range.dateFrom || e.date >= range.dateFrom) &&
+      (!range.dateTo || e.date <= range.dateTo) &&
+      (!(range.timeFrom || range.timeTo) ||
+        (!!e.time &&
+          (!range.timeFrom || e.time >= range.timeFrom) &&
+          (!range.timeTo || e.time <= range.timeTo))) &&
+      (min === undefined || e.cents >= min) &&
+      (max === undefined || e.cents <= max),
+  );
+}
 export function remaining(g: Goal) {
   return Math.max(0, g.target - g.saved);
 }
@@ -190,12 +357,23 @@ export function validateBook(raw: unknown): Book {
     typeof v === 'string' && v.trim().length > 0 && v.length <= max;
   const amount = (v: unknown) =>
     Number.isSafeInteger(v) && Number(v) >= 0 && Number(v) <= 99999999999;
+  if (
+    x.currentFunds !== undefined &&
+    (!Number.isSafeInteger(x.currentFunds) ||
+      Math.abs(x.currentFunds) > 99999999999)
+  )
+    throw new Error('当前资金总额无效。');
   for (const k of ['income', 'expense'] as Kind[]) {
     const c = x.categories[k];
     if (
       !Array.isArray(c) ||
       !c.length ||
-      c.length > 200 ||
+      c.length >
+        200 +
+          (k === 'income'
+            ? Number(c.includes('退款'))
+            : addedExpenseCategories.filter((name) => c.includes(name))
+                .length) ||
       c.some((n) => !text(n, 30)) ||
       new Set(c).size !== c.length
     )
@@ -222,7 +400,48 @@ export function validateBook(raw: unknown): Book {
     )
       throw new Error('账目数据无效或包含重复记录。');
     ids.add(e.id);
+    if (
+      e.activity !== undefined &&
+      (typeof e.activity !== 'string' || e.activity.length > 60)
+    )
+      throw new Error('活动标签无效。');
+    if (e.importInfo !== undefined) {
+      const m = e.importInfo;
+      if (
+        !m ||
+        !['wechat', 'alipay'].includes(m.source) ||
+        typeof m.key !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(m.key) ||
+        !text(m.batch, 100) ||
+        typeof m.merchant !== 'string' ||
+        m.merchant.length > 200
+      )
+        throw new Error('账单来源信息无效。');
+      if (
+        m.timestamp !== undefined &&
+        (typeof m.timestamp !== 'string' ||
+          !/^\d{4}-\d{2}-\d{2} ([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(
+            m.timestamp,
+          ) ||
+          !validDate(m.timestamp.slice(0, 10)))
+      )
+        throw new Error('原始交易时间无效。');
+    }
   }
+  if (
+    x.merchantRules !== undefined &&
+    (!Array.isArray(x.merchantRules) ||
+      x.merchantRules.length > 2000 ||
+      x.merchantRules.some(
+        (r) =>
+          !r ||
+          !['wechat', 'alipay'].includes(r.source) ||
+          !text(r.merchant, 200) ||
+          !['income', 'expense'].includes(r.kind) ||
+          !x.categories[r.kind]?.includes(r.category),
+      ))
+  )
+    throw new Error('商家分类规则无效。');
   for (const g of x.goals) {
     if (
       !g ||
@@ -267,12 +486,27 @@ export function validateBook(raw: unknown): Book {
   }
   return {
     version: 1,
+    ...(x.currentFunds !== undefined ? { currentFunds: x.currentFunds } : {}),
     categories: {
-      income: [...x.categories.income],
-      expense: [...x.categories.expense],
+      income: x.categories.income.includes('退款')
+        ? [...x.categories.income]
+        : [...x.categories.income, '退款'],
+      expense: [
+        ...new Set([...x.categories.expense, ...addedExpenseCategories]),
+      ],
     },
     entries: x.entries.map(
-      ({ id, date, time, kind, category, cents, note }) => ({
+      ({
+        id,
+        date,
+        time,
+        kind,
+        category,
+        cents,
+        note,
+        activity,
+        importInfo,
+      }) => ({
         id,
         date,
         ...(time !== undefined ? { time } : {}),
@@ -280,8 +514,34 @@ export function validateBook(raw: unknown): Book {
         category,
         cents,
         note,
+        ...(activity !== undefined ? { activity } : {}),
+        ...(importInfo !== undefined
+          ? {
+              importInfo: {
+                source: importInfo.source,
+                key: importInfo.key,
+                batch: importInfo.batch,
+                merchant: importInfo.merchant,
+                ...(importInfo.timestamp
+                  ? { timestamp: importInfo.timestamp }
+                  : {}),
+              },
+            }
+          : {}),
       }),
     ),
+    ...(x.merchantRules !== undefined
+      ? {
+          merchantRules: x.merchantRules.map(
+            ({ source, merchant, kind, category }) => ({
+              source,
+              merchant,
+              kind,
+              category,
+            }),
+          ),
+        }
+      : {}),
     goals: x.goals.map(
       ({ id, name, target, saved, deadline, installments, completed }) => ({
         id,

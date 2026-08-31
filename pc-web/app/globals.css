@@ -650,9 +650,175 @@ label {
 .goal .my-4 {
   margin: 16px 0;
 }
-td:nth-child(3) {
+.record-note {
   max-width: 260px;
   overflow-wrap: anywhere;
+}
+.ledger-bulk {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  margin: 10px 0 16px;
+  background: var(--muted);
+  border-radius: 14px;
+}
+.ledger-ranges {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.ledger-filter-actions,
+.ledger-type-buttons,
+.ledger-filter-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ledger-type-filters {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.ledger-type-buttons {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+}
+.ledger-type-buttons button {
+  flex: 0 0 auto;
+}
+.current-funds {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  margin-bottom: 24px;
+  border-color: var(--primary);
+}
+.current-funds-total {
+  flex: 1 1 240px;
+}
+.current-funds-total strong {
+  display: block;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.3;
+  margin: 10px 0;
+  color: var(--primary);
+}
+.current-funds form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.current-funds label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+}
+.current-funds input {
+  max-width: 200px;
+}
+.current-funds-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.ledger-type-buttons button[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--primary);
+  font-weight: 700;
+}
+.ledger-type-filters .muted {
+  margin: 12px 0 0;
+}
+.ledger-filter-summary {
+  margin: 12px 0;
+  font-size: 13px;
+}
+.ledger-filter-summary p {
+  width: 100%;
+}
+.ledger-search-label {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 16px;
+  max-width: 480px;
+  font-size: 13px;
+}
+.ledger-sort,
+.ledger-bulk-category {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.ledger-sort {
+  margin: 16px 0;
+}
+.ledger-sort label,
+.ledger-bulk-category label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ledger-sort .muted,
+.ledger-bulk-category .muted {
+  flex-basis: 100%;
+}
+.ledger-bulk-category {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+}
+.ledger-range-fields {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.ledger-range-fields label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  font-size: 13px;
+}
+.ledger-range-fields input {
+  min-width: 0;
+  width: 100%;
+}
+@media (max-width: 1100px) {
+  .ledger-range-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 400px) {
+  .ledger-range-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.ledger-bulk p,
+.ledger-bulk .notice {
+  width: 100%;
+}
+.record-select {
+  width: 52px;
+  min-width: 52px;
+}
+@media (max-width: 700px) {
+  td.record-select {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    padding: 6px 0;
+  }
+  .ledger-bulk {
+    padding: 12px;
+    gap: 10px;
+  }
 }
 .goal h3 {
   overflow-wrap: anywhere;
@@ -915,9 +1081,17 @@ select:focus-visible {
 }
 .completion-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
   margin-top: 26px;
+}
+.completion-undo {
+  max-width: 640px;
+  margin: 20px auto 0;
+}
+.completion-undo p {
+  margin-bottom: 12px;
 }
 .focused-entry > .success {
   display: none;
@@ -1515,9 +1689,6 @@ select:focus-visible {
   }
   .form-actions button {
     min-height: 42px;
-  }
-  .shell:has(input:focus) .sidebar nav {
-    display: none;
   }
 }
 @media (max-width: 360px) {
