@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.wrangler/
+*.tsbuildinfo
+
+# Local environment, logs, caches and private ledger exports
+.env*
+!.env.example
+*.log
+.next/
+.vinext/
+.codex/
+.agents/
+backups/
+备份/
+*备份*.json
+*原始数据*.json
+*恢复前副本*.json
+*.db
+*.sqlite
+*.sqlite3
