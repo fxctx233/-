@@ -889,6 +889,7 @@ export default function Home() {
         </div>
       </aside>
       <main
+        data-view={view}
         className={`main ${view === 'entry' || view === 'complete' ? 'focused-entry' : ''}`}
       >
         <div className="theme-picker" role="group" aria-label="界面配色">
@@ -1043,9 +1044,12 @@ export default function Home() {
                 确认调整余额
               </Button>
             </form>
-            <p className="muted current-funds-note">
-              新增、补记或导入收支会同步增减余额；修改按差额调整，删除或撤销会反向调整。改分类和存款计划不重复扣款。手动设置用于校准实际余额，历史账目不会再扣一遍；恢复完整备份直接使用备份余额。
-            </p>
+            <details className="muted current-funds-note">
+              <summary>余额如何联动与校准</summary>
+              <p>
+                新增、补记或导入收支会同步增减余额；修改按差额调整，删除或撤销会反向调整。改分类和存款计划不重复扣款。手动设置用于校准实际余额，历史账目不会再扣一遍；恢复完整备份直接使用备份余额。
+              </p>
+            </details>
             {currentFunds(book) < 0 && (
               <p className="negative current-funds-note">
                 余额为负：可能是资金不足或尚未设置初始余额，可在上方校准；不会阻止你记录真实支出。
@@ -1296,7 +1300,7 @@ export default function Home() {
           <section className="panel">
             <div className="toolbar">
               <h2>{view === 'overview' ? '最近账目' : '账单明细'}</h2>
-              {!isAndroidApp() && (
+              {
                 <Button
                   variant="outline"
                   disabled={!ready || blocked || demo}
@@ -1305,7 +1309,7 @@ export default function Home() {
                   <Upload />
                   导入支付账单
                 </Button>
-              )}
+              }
               {view === 'overview' ? (
                 <Button variant="ghost" onClick={() => go('ledger')}>
                   查看全部 →
@@ -1740,7 +1744,12 @@ export default function Home() {
                 <tbody>
                   {(view === 'overview' ? shown.slice(0, 5) : shown).map(
                     (e) => (
-                      <tr key={e.id}>
+                      <tr
+                        key={e.id}
+                        className={
+                          view === 'ledger' ? 'selectable-record' : undefined
+                        }
+                      >
                         {view === 'ledger' && (
                           <td className="record-select">
                             <Checkbox
@@ -1857,7 +1866,7 @@ export default function Home() {
             </div>
           </section>
         )}
-        {importOpened && !isAndroidApp() && (
+        {importOpened && (
           <div hidden={view !== 'import'}>
             <BillImporter
               book={book}
@@ -2411,7 +2420,7 @@ export default function Home() {
                 </div>
               )}
             </section>
-            {!isAndroidApp() && (
+            {
               <section className="panel">
                 <h2>导入支付宝 / 微信账单</h2>
                 <p className="muted">
@@ -2450,7 +2459,7 @@ export default function Home() {
                   导出最近导入操作前的账本
                 </Button>
               </section>
-            )}
+            }
             <section className="panel">
               <div className="toolbar">
                 <h2>分类管理</h2>
@@ -2622,7 +2631,7 @@ export default function Home() {
           </>
         )}
         <footer className="footer">
-          日常记账，每天积累一点点。　·　本地离线账本 v0.1
+          日常记账，每天积累一点点。　·　本地离线账本 v0.3
         </footer>
       </main>
     </div>

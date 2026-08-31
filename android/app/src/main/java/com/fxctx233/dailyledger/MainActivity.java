@@ -18,12 +18,13 @@ import java.util.*;
 
 public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net";
-    private static final int EXPORT = 201, IMPORT = 202, LIMIT = 10 * 1024 * 1024;
-    private static final Set<String> KEYS = new HashSet<>(Arrays.asList("xiaoman-ledger-v1", "xiaoman-ledger-v1-before-restore", "xiaoman-theme"));
+    private static final int EXPORT = 201, IMPORT = 202, BILLS = 203, LIMIT = 10 * 1024 * 1024;
+    private static final Set<String> KEYS = new HashSet<>(Arrays.asList("xiaoman-ledger-v1", "xiaoman-ledger-v1-before-restore", "xiaoman-ledger-v1-before-import", "xiaoman-ledger-v1-before-bulk", "xiaoman-ledger-v1-before-clear", "xiaoman-theme"));
     private WebView web;
     private Store store;
     private String pendingExport;
     private boolean fileBusy;
+    private ValueCallback<Uri[]> billCallback;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -35,7 +36,8 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(false);
+        // Only documents explicitly granted by the system picker; no broad storage permission.
+        settings.setAllowContentAccess(true);
         settings.setAllowFileAccessFromFileURLs(false);
         settings.setAllowUniversalAccessFromFileURLs(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -63,6 +65,21 @@ public class MainActivity extends Activity {
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileBusy) { callback.onReceiveValue(null); return true; }
+                billCallback = callback;
+                fileBusy = true;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                    .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                // Some providers label CSV/XLSX as generic binary, so let the local parser validate.
+                try { startActivityForResult(intent, BILLS); }
+                catch (RuntimeException e) {
+                    fileBusy = false; billCallback = null; callback.onReceiveValue(null);
+                    Toast.makeText(MainActivity.this, "无法打开文件选择器，请先将账单保存到下载目录。", Toast.LENGTH_LONG).show();
+                }
+                return true;
+            }
             @Override public boolean onJsConfirm(WebView v, String url, String message, JsResult result) {
                 new AlertDialog.Builder(MainActivity.this).setTitle("日常记账").setMessage(message)
                     .setPositiveButton("确认", (d,w)->result.confirm()).setNegativeButton("取消", (d,w)->result.cancel())
@@ -117,6 +134,27 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request,result,data);
+        if (request == BILLS) {
+            fileBusy = false;
+            ValueCallback<Uri[]> callback = billCallback; billCallback = null;
+            if (callback == null) return;
+            ArrayList<Uri> uris = new ArrayList<>();
+            if (result == RESULT_OK && data != null) {
+                if (data.getClipData() != null) {
+                    int count = data.getClipData().getItemCount();
+                    if (count > 8) {
+                        Toast.makeText(this, "一次最多选择 8 份账单。", Toast.LENGTH_LONG).show();
+                        callback.onReceiveValue(null); return;
+                    }
+                    for (int i=0; i<count; i++) uris.add(data.getClipData().getItemAt(i).getUri());
+                } else if (data.getData() != null) uris.add(data.getData());
+            }
+            for (Uri uri : uris) {
+                if (uri == null || !"content".equals(uri.getScheme())) { callback.onReceiveValue(null); return; }
+            }
+            callback.onReceiveValue(uris.isEmpty() ? null : uris.toArray(new Uri[0]));
+            return;
+        }
         if(request!=EXPORT && request!=IMPORT) return;
         fileBusy=false;
         if(result!=RESULT_OK || data==null || data.getData()==null) {pendingExport=null;emit("dailyLedgerFileResult","cancelled");return;}
@@ -146,5 +184,8 @@ public class MainActivity extends Activity {
                 .setPositiveButton("退出",(d,w)->finish()).setNegativeButton("取消",null).show();
         });
     }
-    @Override protected void onDestroy() { web.removeJavascriptInterface("DailyLedgerAndroid");web.destroy();store.close();super.onDestroy(); }
+    @Override protected void onDestroy() {
+        if (billCallback != null) { billCallback.onReceiveValue(null); billCallback = null; }
+        web.removeJavascriptInterface("DailyLedgerAndroid");web.destroy();store.close();super.onDestroy();
+    }
 }

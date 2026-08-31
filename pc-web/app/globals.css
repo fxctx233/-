@@ -1916,3 +1916,196 @@ select:focus-visible {
     flex-shrink: 0;
   }
 }
+/* Portrait layout shared by the offline Android app and mobile browsers. */
+@media (max-width: 700px) {
+  .main {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+  .main.focused-entry {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+  .current-funds {
+    gap: 16px;
+    border-radius: 22px;
+    background: linear-gradient(145deg, var(--theme-soft), white);
+  }
+  .current-funds-total {
+    flex-basis: 100%;
+  }
+  .current-funds-total strong {
+    font-size: 34px;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+  .current-funds form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+    gap: 12px;
+  }
+  .current-funds label {
+    min-width: 0;
+  }
+  .current-funds input,
+  .current-funds select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    min-height: 44px;
+  }
+  .current-funds form > button {
+    grid-column: 1 / -1;
+    min-height: 44px;
+  }
+  .current-funds-note {
+    font-size: 11px;
+    line-height: 1.8;
+  }
+  .ledger-type-filters {
+    padding: 8px 0;
+    border: 0;
+    margin: 10px 0;
+  }
+  .ledger-type-buttons {
+    gap: 8px;
+    scrollbar-width: thin;
+  }
+  .ledger-type-buttons button {
+    min-height: 44px;
+    border-radius: 24px;
+  }
+  .ledger-sort {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+  .ledger-sort label {
+    display: grid;
+    min-width: 0;
+    font-size: 12px;
+  }
+  .ledger-sort select {
+    width: 100%;
+    min-width: 0;
+  }
+  .ledger-sort .muted {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 11px;
+  }
+  .ledger-bulk-category {
+    width: 100%;
+    min-width: 0;
+  }
+  .ledger-bulk-category label {
+    display: grid;
+    width: 100%;
+  }
+  .ledger-bulk-category select {
+    width: 100%;
+  }
+  .ledger-bulk button,
+  .ledger-filter-actions button,
+  .ledger-ranges button {
+    min-height: 44px;
+    white-space: normal;
+    height: auto;
+  }
+  .ledger-range-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ledger-ranges {
+    padding: 12px;
+  }
+  .ledger-ranges input {
+    min-height: 44px;
+    font-size: 14px;
+  }
+  .selectable-record {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .selectable-record td.record-select {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    width: 32px;
+    min-width: 0;
+    padding: 0;
+    align-self: start;
+  }
+  .record-select [data-slot='checkbox'] {
+    width: 28px;
+    height: 32px;
+  }
+  .selectable-record .record-category,
+  .selectable-record .record-date,
+  .selectable-record .record-note {
+    grid-column: 2;
+  }
+  .selectable-record td.money,
+  .selectable-record .record-actions {
+    grid-column: 3;
+  }
+  .selectable-record .record-actions button {
+    width: 44px;
+    height: 44px;
+  }
+  .selectable-record:has([data-state='checked']) {
+    background: var(--theme-soft);
+    border-radius: 12px;
+  }
+  .completion-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .completion-actions button {
+    min-height: 44px;
+  }
+  .completion-actions button:first-child {
+    grid-column: 1 / -1;
+  }
+  .form-actions,
+  .backup-grid,
+  .panel > .flex {
+    min-width: 0;
+  }
+  .panel > .flex {
+    flex-wrap: wrap;
+  }
+  .panel > .flex > input {
+    min-width: 0;
+  }
+}
+.current-funds-note summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+@media (max-width: 700px) {
+  .main[data-view='ledger'] > header {
+    display: none;
+  }
+  .main[data-view='ledger'] > .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .main[data-view='ledger'] > .stats .stat {
+    grid-column: auto;
+    padding: 14px 8px;
+  }
+  .main[data-view='ledger'] > .stats .stat strong {
+    font-size: clamp(14px, 4vw, 22px);
+    overflow-wrap: anywhere;
+  }
+  .main[data-view='ledger'] > .stats .stat small,
+  .main[data-view='ledger'] > .stats .stat svg {
+    display: none;
+  }
+  .main[data-view='ledger'] > .stats .stat p {
+    font-size: 11px;
+  }
+  .main[data-view='ledger'] .quick-actions {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+}

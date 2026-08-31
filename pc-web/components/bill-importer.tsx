@@ -197,7 +197,7 @@ export function BillImporter({
       </Button>
       <div className="panel import-intro">
         <div>
-          <span className="badge">PC 本地导入 · 预览后再保存</span>
+          <span className="badge">本地导入 · 预览后再保存</span>
           <h2>把账单整理成你的账本</h2>
           <p className="muted">
             选择支付宝 CSV、微信 XLSX /
