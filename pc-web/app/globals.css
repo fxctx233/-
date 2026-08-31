@@ -1162,3 +1162,387 @@ select:focus-visible {
     margin-bottom: 24px;
   }
 }
+/* Portrait phone layout, shared by the website and the offline Android APK. */
+@media (max-width: 700px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  body {
+    font-size: 14px;
+  }
+  .sidebar {
+    padding: 18px 20px 12px;
+    position: static;
+    border: 0;
+  }
+  .brand {
+    font-size: 21px;
+    gap: 8px;
+  }
+  .brand span {
+    display: block;
+    margin: 2px 0 0;
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .sidebar nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+    margin: 0;
+    padding: 7px 10px calc(8px + env(safe-area-inset-bottom));
+    background: #fff;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 22px #00000005;
+  }
+  .sidebar nav button {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 2px;
+    font-size: 11px;
+    min-height: 51px;
+    white-space: normal;
+    line-height: 1.4;
+  }
+  .sidebar nav svg {
+    display: block;
+    width: 21px;
+    height: 21px;
+  }
+  .main {
+    padding: 12px 16px 92px;
+    width: 100%;
+    min-width: 0;
+  }
+  .main.focused-entry {
+    padding-bottom: 90px;
+  }
+  .theme-picker {
+    margin: 0 0 18px;
+    gap: 11px;
+    justify-content: center;
+    min-height: 36px;
+  }
+  .theme-swatch {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+  }
+  .theme-picker > span,
+  .theme-picker > small {
+    font-size: 10px;
+  }
+  .quick-actions {
+    gap: 52px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+  }
+  .quick-action-item {
+    gap: 10px;
+  }
+  .entry-kind-circle {
+    width: 92px !important;
+    height: 92px !important;
+    font-size: 20px !important;
+  }
+  .entry-kind-circle svg {
+    width: 26px !important;
+    height: 26px !important;
+  }
+  .quick-action-item > small {
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  header {
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+  h1 {
+    font-size: 21px;
+    line-height: 1.45;
+    letter-spacing: 0;
+  }
+  .eyebrow {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+  }
+  .stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .stat.featured {
+    grid-column: 1/-1;
+  }
+  .stat {
+    padding: 18px 14px;
+  }
+  .stat strong {
+    font-size: 24px;
+  }
+  .stat.featured strong {
+    font-size: 30px;
+  }
+  .stat p {
+    margin-bottom: 10px;
+  }
+  .stat small {
+    font-size: 10px;
+    line-height: 1.7;
+  }
+  .panel {
+    padding: 18px 14px;
+    margin-bottom: 16px;
+    border-radius: 16px;
+  }
+  .two-cols {
+    gap: 0;
+  }
+  .backup-grid {
+    gap: 14px;
+  }
+  .toolbar {
+    gap: 12px;
+  }
+  .toolbar > .flex {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .toolbar > .flex input {
+    min-width: 100px;
+    flex: 1;
+  }
+  select {
+    min-height: 42px;
+    font-size: 14px;
+    max-width: 100%;
+  }
+  .segmented button {
+    min-height: 34px;
+    padding: 6px 15px;
+  }
+  .notice {
+    line-height: 1.8;
+    padding: 12px;
+    margin: 14px 0;
+  }
+  .notice.toolbar {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .notice button {
+    min-height: 36px;
+  }
+  .quick-entry {
+    padding: 18px 16px 12px;
+    border-radius: 20px;
+  }
+  .entry-caption {
+    font-size: 13px;
+    gap: 7px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .entry-date {
+    font-size: 10px;
+  }
+  .amount-label {
+    margin-top: 22px;
+  }
+  .amount-field {
+    margin: 9px auto 24px;
+    padding-bottom: 10px;
+  }
+  .amount-field input {
+    height: 60px !important;
+    font-size: 40px !important;
+  }
+  .category-picker legend {
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  .category-picker legend small {
+    font-size: 10px;
+  }
+  .circle-category-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 17px 8px;
+  }
+  .category-circle {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .category-name {
+    font-size: 11px;
+  }
+  .round-confirm-area {
+    margin-top: 25px;
+  }
+  .confirm-note-row {
+    gap: 15px;
+  }
+  .confirm-note input {
+    font-size: 16px !important;
+    height: 44px;
+  }
+  .round-confirm {
+    width: 70px !important;
+    height: 70px !important;
+    flex-shrink: 0;
+  }
+  .round-confirm-area p {
+    font-size: 10px;
+    text-align: center;
+  }
+  .form-grid {
+    gap: 16px;
+  }
+  .form-grid input {
+    height: 44px;
+    font-size: 16px;
+  }
+  .entry-complete {
+    padding: 22px 12px;
+    margin: 12px auto;
+  }
+  .complete-circle {
+    width: 86px;
+    height: 86px;
+  }
+  .complete-amount {
+    font-size: 32px;
+  }
+  .completion-actions button {
+    min-height: 42px;
+  }
+  .table-wrap {
+    overflow: visible;
+  }
+  table,
+  tbody {
+    display: block;
+    width: 100%;
+  }
+  thead {
+    display: none;
+  }
+  tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px 10px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .record-category {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .record-date {
+    grid-column: 1;
+    grid-row: 2;
+    color: #889381;
+    font-size: 11px;
+  }
+  .record-time {
+    display: inline;
+    margin: 0 0 0 7px;
+  }
+  .record-note {
+    grid-column: 1;
+    grid-row: 3;
+    color: #788571;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    max-width: none !important;
+  }
+  td.money {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 16px;
+    align-self: center;
+  }
+  .record-actions {
+    grid-column: 2;
+    grid-row: 2/4;
+    align-self: center;
+  }
+  .record-actions button {
+    height: 40px;
+    width: 40px;
+  }
+  .record-actions svg {
+    width: 16px;
+    height: 16px;
+  }
+  .category-summary {
+    gap: 8px;
+  }
+  .category-summary .category {
+    padding: 8px 10px;
+  }
+  .footer {
+    font-size: 9px;
+    line-height: 1.8;
+    margin-top: 22px;
+  }
+  .goal h3 {
+    font-size: 15px;
+  }
+  .goal .flex {
+    flex-wrap: wrap;
+  }
+  .goal .flex button {
+    min-height: 38px;
+  }
+  .form-actions {
+    flex-wrap: wrap;
+  }
+  .form-actions button {
+    min-height: 42px;
+  }
+  .shell:has(input:focus) .sidebar nav {
+    display: none;
+  }
+}
+@media (max-width: 360px) {
+  .main {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .theme-picker {
+    gap: 8px;
+  }
+  .theme-picker > small {
+    display: none;
+  }
+  .quick-actions {
+    gap: 42px;
+  }
+  .circle-category-grid {
+    gap: 15px 5px;
+  }
+  .category-circle {
+    width: 51px !important;
+    height: 51px !important;
+  }
+  .quick-entry {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

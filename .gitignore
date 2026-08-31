@@ -20,3 +20,10 @@ backups/
 *.db
 *.sqlite
 *.sqlite3
+android/.gradle/
+android/**/build/
+android/local.properties
+android/app/src/main/assets/web/
+*.apk
+*.keystore
+*.jks

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
+import { deviceStorage, isAndroidApp } from '@/lib/device';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -105,7 +106,7 @@ export default function Home() {
   const [theme, setTheme] = useState('sage');
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('xiaoman-theme');
+      const saved = deviceStorage.getItem('xiaoman-theme');
       if (
         saved &&
         ['sage', 'blue', 'lavender', 'rose', 'amber'].includes(saved)
@@ -119,7 +120,7 @@ export default function Home() {
     setTheme(value);
     document.documentElement.dataset.theme = value;
     try {
-      localStorage.setItem('xiaoman-theme', value);
+      deviceStorage.setItem('xiaoman-theme', value);
     } catch {
       setError('配色已应用，但浏览器不允许保存设置，重启后可能恢复默认。');
     }
@@ -155,9 +156,45 @@ export default function Home() {
   const [pending, setPending] = useState<Book | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    const imported = (event: Event) => {
+      try {
+        setPending(
+          validateBook(JSON.parse((event as CustomEvent<string>).detail)),
+        );
+        setError('');
+        setView('settings');
+      } catch {
+        setError('备份格式无效，现有账目没有修改。');
+      }
+    };
+    const exported = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (detail === 'saved')
+        setMessage('备份已保存到你选择的位置，可复制到电脑。');
+      else if (detail === 'cancelled') setMessage('已取消文件操作。');
+      else setError(detail);
+    };
+    window.addEventListener('dailyLedgerImport', imported);
+    window.addEventListener('dailyLedgerFileResult', exported);
+    return () => {
+      window.removeEventListener('dailyLedgerImport', imported);
+      window.removeEventListener('dailyLedgerFileResult', exported);
+    };
+  }, []);
+  useEffect(() => {
+    const back = (event: Event) => {
+      if (view !== 'overview') {
+        event.preventDefault();
+        go('overview');
+      }
+    };
+    window.addEventListener('dailyLedgerBack', back);
+    return () => window.removeEventListener('dailyLedgerBack', back);
+  }, [view]);
+  useEffect(() => {
     setDate(today());
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = deviceStorage.getItem(KEY);
       if (raw) setBook(validateBook(JSON.parse(raw)));
     } catch {
       setError(
@@ -178,6 +215,7 @@ export default function Home() {
     return () => window.removeEventListener('storage', handler);
   }, []);
   function go(v: View) {
+    window.scrollTo({ top: 0 });
     setView(v);
     setMessage('');
     if (!blocked) setError('');
@@ -187,7 +225,7 @@ export default function Home() {
       validateBook(next);
       if (!demo) {
         if (blocked) throw new Error('账本已暂停写入，请先恢复备份或刷新。');
-        localStorage.setItem(KEY, JSON.stringify(next));
+        deviceStorage.setItem(KEY, JSON.stringify(next));
       }
       setBook(next);
       setError('');
@@ -216,6 +254,13 @@ export default function Home() {
     go('goal');
   }
   function download(data: unknown, name = '日常记账备份') {
+    if (isAndroidApp()) {
+      window.DailyLedgerAndroid!.exportBackup(
+        name + '-' + today() + '.json',
+        typeof data === 'string' ? data : JSON.stringify(data, null, 2),
+      );
+      return;
+    }
     const blob = new Blob(
       [typeof data === 'string' ? data : JSON.stringify(data, null, 2)],
       { type: 'application/json' },
@@ -230,7 +275,7 @@ export default function Home() {
   function switchDemo() {
     if (demo) {
       try {
-        const raw = localStorage.getItem(KEY);
+        const raw = deviceStorage.getItem(KEY);
         setBook(raw ? validateBook(JSON.parse(raw)) : emptyBook());
         setDemo(false);
         go('overview');
@@ -346,9 +391,9 @@ export default function Home() {
   function restore() {
     if (!pending) return;
     try {
-      const old = localStorage.getItem(KEY);
-      if (old !== null) localStorage.setItem(KEY + '-before-restore', old);
-      localStorage.setItem(KEY, JSON.stringify(pending));
+      const old = deviceStorage.getItem(KEY);
+      if (old !== null) deviceStorage.setItem(KEY + '-before-restore', old);
+      deviceStorage.setItem(KEY, JSON.stringify(pending));
       setBook(pending);
       setDemo(false);
       setBlocked(false);
@@ -515,7 +560,13 @@ export default function Home() {
           {nav.map(([id, label, Icon]) => (
             <button
               key={id}
-              className={view === id ? 'active' : ''}
+              className={
+                view === id ||
+                (id === 'ledger' && ['entry', 'complete'].includes(view)) ||
+                (id === 'goals' && ['goal', 'deposit'].includes(view))
+                  ? 'active'
+                  : ''
+              }
               onClick={() => go(id)}
             >
               <Icon />
@@ -910,7 +961,7 @@ export default function Home() {
               <table>
                 <thead>
                   <tr>
-                    <th>日期</th>
+                    <th>日期 / 时间</th>
                     <th>分类</th>
                     <th>备注</th>
                     <th style={{ textAlign: 'right' }}>金额</th>
@@ -921,16 +972,16 @@ export default function Home() {
                   {(view === 'overview' ? shown.slice(0, 5) : shown).map(
                     (e) => (
                       <tr key={e.id}>
-                        <td>
+                        <td className="record-date">
                           {e.date}
                           <small className="record-time">
                             {e.time ?? '未记录时间'}
                           </small>
                         </td>
-                        <td>
+                        <td className="record-category">
                           <span className="category">{e.category}</span>
                         </td>
-                        <td>{e.note || '—'}</td>
+                        <td className="record-note">{e.note || '无备注'}</td>
                         <td
                           className={`money ${e.kind === 'income' ? 'positive' : 'negative'}`}
                         >
@@ -938,6 +989,7 @@ export default function Home() {
                           {money(e.cents)}
                         </td>
                         <td
+                          className="record-actions"
                           style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
                         >
                           <Button
@@ -1403,7 +1455,11 @@ export default function Home() {
                 />
                 <Button
                   variant="outline"
-                  onClick={() => fileRef.current?.click()}
+                  onClick={() =>
+                    isAndroidApp()
+                      ? window.DailyLedgerAndroid!.importBackup()
+                      : fileRef.current?.click()
+                  }
                 >
                   选择备份文件
                 </Button>
@@ -1440,18 +1496,20 @@ export default function Home() {
                 </span>
               </div>
               <p className="muted">
-                账目保存在当前浏览器的 localStorage
-                中，不上传服务器。清理浏览器数据、更换浏览器、地址或端口后，无法直接看到原账本，请先导出备份。无痕模式不适合长期保存。
+                {isAndroidApp()
+                  ? '账目保存在本应用专属的 SQLite 数据库中，不上传服务器。卸载应用或清除应用数据前请先导出备份。手机与电脑之间通过备份文件手动转移，不会自动同步。'
+                  : '账目保存在当前浏览器本地，不上传服务器。清理浏览器数据、更换浏览器、地址或端口前，请先导出备份。无痕模式不适合长期保存。'}
               </p>
               <p className="muted">
-                这是网页版本，尚不是 Windows 安装程序。本机运行时需要保持服务开启；
-                发布后的在线版可直接通过网址打开。两种网址的账本不互通，切换时请先导出再导入备份。
+                {isAndroidApp()
+                  ? '安卓离线版 · 无网络权限。应用包含完整界面，不需要连接网页或启动电脑。备份是明文文件，请妥善保管。'
+                  : '这是网页版本。本地版、在线版和安卓应用的账本各自独立，切换时请先导出再导入备份。'}
               </p>
               <div className="flex flex-wrap">
                 <Button
                   variant="outline"
                   onClick={() => {
-                    const s = localStorage.getItem(KEY + '-before-restore');
+                    const s = deviceStorage.getItem(KEY + '-before-restore');
                     if (s) download(s, '日常记账恢复前副本');
                     else setMessage('目前没有恢复前副本。');
                   }}
@@ -1461,7 +1519,7 @@ export default function Home() {
                 <Button
                   variant="ghost"
                   onClick={() => {
-                    const s = localStorage.getItem(KEY);
+                    const s = deviceStorage.getItem(KEY);
                     if (s) download(s, '日常记账原始数据');
                     else setMessage('暂无已保存原始数据。');
                   }}
