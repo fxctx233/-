@@ -236,7 +236,11 @@ export default function Home() {
       setBook(next);
       setError('');
       setMessage(
-        demo ? '示例已更新，不影响你的真实账本。' : '已保存到本机浏览器。',
+        demo
+          ? '示例已更新，不影响你的真实账本。'
+          : isAndroidApp()
+            ? '已保存到手机本地数据库。'
+            : '已保存到本机浏览器。',
       );
       return true;
     } catch (e) {

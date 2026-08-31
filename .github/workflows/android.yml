@@ -24,7 +24,10 @@ jobs:
         with:
           gradle-version: '8.7'
       - name: Install Android platform
-        run: sdkmanager "platforms;android-35" "build-tools;34.0.0"
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
       - run: npm ci
         working-directory: pc-web
       - run: npx tsc --noEmit

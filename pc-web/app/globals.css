@@ -1691,3 +1691,57 @@ select:focus-visible {
     display: none;
   }
 }
+@media (max-width: 700px) {
+  .calculator-entry > button,
+  .plan-option > button {
+    width: 100%;
+    min-height: 44px;
+  }
+  .calculator-entry h2 {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .calculator .plan-options {
+    gap: 12px;
+  }
+  .calculator .plan-option {
+    padding: 18px;
+  }
+  .history-toggle,
+  .goal-complete-toggle {
+    min-height: 44px;
+    line-height: 1.6;
+  }
+  .installment-row {
+    min-height: 56px;
+  }
+  .installment-list summary {
+    min-height: 44px;
+    line-height: 24px;
+  }
+  .plan-option summary {
+    min-height: 44px;
+    line-height: 24px;
+  }
+  .history-fields input {
+    min-width: 0;
+    width: 100%;
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .entry-complete .completion-actions {
+    flex-wrap: wrap;
+  }
+  .goal-head {
+    min-width: 0;
+  }
+  .goal-head > small {
+    overflow-wrap: anywhere;
+  }
+  .goal-complete-toggle > [data-slot='checkbox'],
+  .history-toggle > [data-slot='checkbox'] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+}
