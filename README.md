@@ -32,6 +32,12 @@
 
 见 [PC 版说明](pc-web/README.md)。开发依赖和运行日志不包含在源码备份中。
 
+## 安卓手机版
+
+提供 Android 8.0 及以上的竖屏离线测试版：顶部圆形记账入口、底部导航，内置 SQLite 和系统文件备份。包含历史补记和分期存款计划。
+
+在 [Build Android APK](https://github.com/fxctx233/-/actions/workflows/android.yml) 中打开最近成功的构建，下载 `daily-ledger-android-debug` 产物并解压取得 APK（下载 Actions 产物可能需要登录 GitHub）。测试包不是正式商店发行版；安装和升级前请查看 [安卓说明](android/README.md)。网页版与安卓数据需通过导入导出转移，不自动同步。
+
 ## 自动更新
 
 GitHub Pages 启用后，每次向 main 推送更新都会自动测试、构建并发布。只发布 `pc-web/dist-pages` 中的网页文件，不发布账目备份或整个源码目录。

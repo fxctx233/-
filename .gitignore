@@ -27,3 +27,4 @@ android/app/src/main/assets/web/
 *.apk
 *.keystore
 *.jks
+/交付文件/
