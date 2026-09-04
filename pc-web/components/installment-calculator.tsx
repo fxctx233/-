@@ -13,13 +13,29 @@ import {
 
 export function InstallmentCalculator({
   onCreate,
+  draft,
+  onDraftChange,
 }: {
   onCreate: (goal: Goal) => boolean;
+  draft?: { name: string; target: string; saved: string };
+  onDraftChange?: (draft: {
+    name: string;
+    target: string;
+    saved: string;
+  }) => void;
 }) {
-  const [name, setName] = useState('旅行基金'),
-    [target, setTarget] = useState('5000'),
-    [saved, setSaved] = useState('0'),
-    [monthly, setMonthly] = useState('1000'),
+  const [localDraft, setLocalDraft] = useState({
+    name: '旅行基金',
+    target: '5000',
+    saved: '0',
+  });
+  const { name, target, saved } = draft ?? localDraft;
+  function change(field: 'name' | 'target' | 'saved', value: string) {
+    const next = { ...(draft ?? localDraft), [field]: value };
+    if (draft && onDraftChange) onDraftChange(next);
+    else setLocalDraft(next);
+  }
+  const [monthly, setMonthly] = useState('1000'),
     [months, setMonths] = useState('2'),
     [start, setStart] = useState(today()),
     [error, setError] = useState('');
@@ -54,7 +70,7 @@ export function InstallmentCalculator({
           <Input
             value={name}
             maxLength={60}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => change('name', e.target.value)}
           />
         </label>
         <label>
@@ -62,7 +78,7 @@ export function InstallmentCalculator({
           <Input
             value={target}
             inputMode="decimal"
-            onChange={(e) => setTarget(e.target.value)}
+            onChange={(e) => change('target', e.target.value)}
           />
         </label>
         <label>
@@ -70,7 +86,7 @@ export function InstallmentCalculator({
           <Input
             value={saved}
             inputMode="decimal"
-            onChange={(e) => setSaved(e.target.value)}
+            onChange={(e) => change('saved', e.target.value)}
           />
         </label>
         <label>

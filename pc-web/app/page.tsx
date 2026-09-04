@@ -374,7 +374,17 @@ export default function Home() {
       );
     }
   }
+  const [goalDraft, setGoalDraft] = useState({
+    name: '',
+    target: '',
+    saved: '0.00',
+  });
   function addGoal(g?: Goal) {
+    setGoalDraft({
+      name: g?.name ?? '',
+      target: g ? (g.target / 100).toFixed(2) : '',
+      saved: g ? (g.saved / 100).toFixed(2) : '0.00',
+    });
     setGoalEdit(g ?? null);
     go('goal');
   }
@@ -2321,7 +2331,10 @@ export default function Home() {
                     name="name"
                     required
                     maxLength={60}
-                    defaultValue={goalEdit?.name ?? ''}
+                    value={goalDraft.name}
+                    onChange={(e) =>
+                      setGoalDraft({ ...goalDraft, name: e.target.value })
+                    }
                     placeholder="例如：攒一份应急备用金"
                   />
                 </label>
@@ -2331,8 +2344,9 @@ export default function Home() {
                     name="target"
                     required
                     inputMode="decimal"
-                    defaultValue={
-                      goalEdit ? (goalEdit.target / 100).toFixed(2) : ''
+                    value={goalDraft.target}
+                    onChange={(e) =>
+                      setGoalDraft({ ...goalDraft, target: e.target.value })
                     }
                     placeholder="50000.00"
                   />
@@ -2343,8 +2357,9 @@ export default function Home() {
                     name="saved"
                     required
                     inputMode="decimal"
-                    defaultValue={
-                      goalEdit ? (goalEdit.saved / 100).toFixed(2) : '0.00'
+                    value={goalDraft.saved}
+                    onChange={(e) =>
+                      setGoalDraft({ ...goalDraft, saved: e.target.value })
                     }
                   />
                 </label>
@@ -2381,9 +2396,11 @@ export default function Home() {
               <div className="new-goal-calculator">
                 <h2>分期存款计算器</h2>
                 <p className="muted">
-                  也可以在这里直接计算分期并创建计划；上方表单与计算器任选一种保存，不会同时创建两个计划。
+                  名称、目标金额和已存金额与上方同步，修改后立即重新计算；上方表单与计算器任选一种保存，不会同时创建两个计划。
                 </p>
                 <InstallmentCalculator
+                  draft={goalDraft}
+                  onDraftChange={setGoalDraft}
                   onCreate={(goal) => {
                     const ok = commit({
                       ...book,
