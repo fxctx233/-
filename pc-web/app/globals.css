@@ -2279,3 +2279,27 @@ select:focus-visible {
     min-height: 44px;
   }
 }
+.shopping-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.shopping-row .shopping-compact {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  border: 0;
+}
+.shopping-row > button {
+  min-height: 44px;
+}
+.shopping-row .shopping-item-confirm {
+  width: 100%;
+  padding: 8px 0 16px;
+}
+.shopping-item-confirm span {
+  width: 100%;
+  overflow-wrap: anywhere;
+}

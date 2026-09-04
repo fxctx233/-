@@ -697,3 +697,44 @@ void test('shopping plans survive backup and ledger mutations without spending f
     }),
   );
 });
+
+void test('deleting one shopping item preserves other items, plans, funds and backup data', async () => {
+  const { removeShoppingItem } = await import('./ledger.ts');
+  const book = validateBook({
+    ...demoBook(),
+    currentFunds: 10000,
+    shoppingPlans: [
+      {
+        id: 'p1',
+        name: '旅行',
+        items: [
+          { id: 'i1', name: '同名物品', cents: 100 },
+          { id: 'i2', name: '同名物品', cents: 200 },
+        ],
+      },
+      {
+        id: 'p2',
+        name: '家居',
+        items: [{ id: 'i3', name: '椅子', cents: 300 }],
+      },
+    ],
+  });
+  const next = applyFundsChange(book, removeShoppingItem(book, 'p1', 'i1'));
+  assert.deepEqual(next.shoppingPlans![0].items, [
+    book.shoppingPlans![0].items[1],
+  ]);
+  assert.deepEqual(next.shoppingPlans![1], book.shoppingPlans![1]);
+  assert.deepEqual(next.entries, book.entries);
+  assert.deepEqual(next.goals, book.goals);
+  assert.equal(next.currentFunds, 10000);
+  assert.equal(book.shoppingPlans![0].items.length, 2);
+  assert.deepEqual(
+    validateBook(JSON.parse(JSON.stringify(next))).shoppingPlans,
+    next.shoppingPlans,
+  );
+  assert.equal(
+    removeShoppingItem(next, 'p1', 'i2').shoppingPlans![0].items.length,
+    0,
+  );
+  assert.throws(() => removeShoppingItem(next, 'p2', 'i2'));
+});

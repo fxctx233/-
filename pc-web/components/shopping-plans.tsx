@@ -2,7 +2,13 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cents, money, type Book, type ShoppingPlan } from '@/lib/ledger';
+import {
+  removeShoppingItem,
+  cents,
+  money,
+  type Book,
+  type ShoppingPlan,
+} from '@/lib/ledger';
 
 export function ShoppingPlans({
   book,
@@ -30,6 +36,19 @@ export function ShoppingPlans({
   }
   function patch(next: ShoppingPlan) {
     return save(plans.map((p) => (p.id === next.id ? next : p)));
+  }
+  function deleteItem(id: string) {
+    if (!plan || disabled) return;
+    try {
+      const next = removeShoppingItem(book, plan.id, id);
+      if (onCommit(next)) {
+        setRemove('');
+        setEditing('');
+        setError('');
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }
   function submitItem(form: HTMLFormElement, id?: string) {
     if (!plan) return;
@@ -155,7 +174,9 @@ export function ShoppingPlans({
                 required
                 disabled={disabled}
               />
-              <Button type="submit" disabled={disabled}>保存名称</Button>
+              <Button type="submit" disabled={disabled}>
+                保存名称
+              </Button>
             </form>
             <Button
               variant="destructive"
@@ -188,20 +209,52 @@ export function ShoppingPlans({
           <h3>物品清单</h3>
           {plan.items.map((item) =>
             editing !== item.id ? (
-              <button
-                type="button"
-                className="shopping-compact"
-                key={item.id}
-                onClick={() => {
-                  setEditing(item.id);
-                  setRemove('');
-                }}
-                aria-label={`编辑物品 ${item.name}`}
-              >
-                <span>{item.name}</span>
-                <strong>{money(item.cents)}</strong>
-                <small>编辑</small>
-              </button>
+              <div className="shopping-row" key={item.id}>
+                <button
+                  type="button"
+                  className="shopping-compact"
+                  onClick={() => {
+                    setEditing(item.id);
+                    setRemove('');
+                  }}
+                  aria-label={`编辑物品 ${item.name}`}
+                >
+                  <span>{item.name}</span>
+                  <strong>{money(item.cents)}</strong>
+                  <small>编辑</small>
+                </button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={disabled}
+                  aria-label={`删除物品 ${item.name}`}
+                  onClick={() => setRemove(item.id)}
+                >
+                  删除
+                </Button>
+                {remove === item.id && (
+                  <div className="shopping-item-confirm" role="alert">
+                    <span>
+                      只删除“{item.name}”（{money(item.cents)}）？其他物品保留。
+                    </span>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={disabled}
+                      onClick={() => deleteItem(item.id)}
+                    >
+                      确认删除物品
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setRemove('')}
+                    >
+                      取消删除
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
               <form
                 className="shopping-item"
@@ -261,15 +314,7 @@ export function ShoppingPlans({
                       type="button"
                       variant="destructive"
                       disabled={disabled}
-                      onClick={() => {
-                        if (
-                          patch({
-                            ...plan,
-                            items: plan.items.filter((i) => i.id !== item.id),
-                          })
-                        )
-                          setRemove('');
-                      }}
+                      onClick={() => deleteItem(item.id)}
                     >
                       确认删除物品
                     </Button>
@@ -314,7 +359,10 @@ export function ShoppingPlans({
                 disabled={disabled}
               />
             </label>
-            <Button type="submit" disabled={disabled || plan.items.length >= 1000}>
+            <Button
+              type="submit"
+              disabled={disabled || plan.items.length >= 1000}
+            >
               添加物品
             </Button>
           </form>

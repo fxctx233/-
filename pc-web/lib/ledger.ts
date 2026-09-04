@@ -127,6 +127,23 @@ export type Book = {
   }[];
 };
 export const KEY = 'xiaoman-ledger-v1';
+export function removeShoppingItem(
+  book: Book,
+  planId: string,
+  itemId: string,
+): Book {
+  const plan = book.shoppingPlans?.find((p) => p.id === planId);
+  if (!plan || !plan.items.some((i) => i.id === itemId))
+    throw new Error('该物品已不存在，请重新查看清单。');
+  return validateBook({
+    ...book,
+    shoppingPlans: book.shoppingPlans!.map((p) =>
+      p.id === planId
+        ? { ...p, items: p.items.filter((i) => i.id !== itemId) }
+        : p,
+    ),
+  });
+}
 export function currentFunds(book: Book): number {
   return book.currentFunds ?? totals(book.entries).balance;
 }
