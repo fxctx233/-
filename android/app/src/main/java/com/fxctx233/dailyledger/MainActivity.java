@@ -19,7 +19,7 @@ import java.util.*;
 public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net";
     private static final int EXPORT = 201, IMPORT = 202, BILLS = 203, LIMIT = 10 * 1024 * 1024;
-    private static final Set<String> KEYS = new HashSet<>(Arrays.asList("xiaoman-ledger-v1", "xiaoman-ledger-v1-before-restore", "xiaoman-ledger-v1-before-import", "xiaoman-ledger-v1-before-bulk", "xiaoman-ledger-v1-before-clear", "xiaoman-theme"));
+    private static final Set<String> KEYS = new HashSet<>(Arrays.asList("xiaoman-ledger-v1", "xiaoman-ledger-v1-before-restore", "xiaoman-ledger-v1-before-import", "xiaoman-ledger-v1-before-bulk", "xiaoman-ledger-v1-before-clear", "xiaoman-theme", "xiaoman-backup-status"));
     private WebView web;
     private Store store;
     private String pendingExport;

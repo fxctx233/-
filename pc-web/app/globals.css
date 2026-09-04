@@ -2231,3 +2231,51 @@ select:focus-visible {
     margin-bottom: 16px;
   }
 }
+.shopping-compact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 18px 4px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  min-height: 56px;
+}
+.shopping-compact span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.shopping-compact strong {
+  color: var(--theme-strong);
+  font-variant-numeric: tabular-nums;
+}
+.shopping-compact small {
+  font-size: 11px;
+  color: var(--theme-mid);
+}
+.shopping-compact:focus-visible {
+  outline: 2px solid var(--theme-strong);
+}
+.new-goal-calculator {
+  border-top: 1px solid var(--border);
+  margin-top: 32px;
+  padding-top: 24px;
+}
+.backup-reminder .flex {
+  gap: 10px;
+}
+.backup-reminder p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .new-goal-calculator .panel {
+    padding: 14px 0;
+    border: 0;
+  }
+  .backup-reminder button {
+    min-height: 44px;
+  }
+}

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InstallmentCalculator } from '@/components/installment-calculator';
+import { BackupReminder } from '@/components/backup-reminder';
 import { ShoppingPlans } from '@/components/shopping-plans';
 import { BillImporter } from '@/components/bill-importer';
 import { Progress } from '@/components/ui/progress';
@@ -201,6 +202,8 @@ export default function Home() {
     setConfirmBulkDelete(false);
   }, [book, mode, date, filter, query, demo, entryRanges]);
   const [historical, setHistorical] = useState(false);
+  const pendingFullBackup = useRef<string | null>(null);
+  const exportingFile = useRef(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [completedEntry, setCompletedEntry] = useState<Entry | null>(null);
   const [entrySession, setEntrySession] = useState(0);
@@ -230,6 +233,14 @@ export default function Home() {
     };
     const exported = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail;
+      if (detail === 'saved' && pendingFullBackup.current)
+        window.dispatchEvent(
+          new CustomEvent('dailyLedgerFullBackup', {
+            detail: { snapshot: pendingFullBackup.current, confirmed: true },
+          }),
+        );
+      pendingFullBackup.current = null;
+      exportingFile.current = false;
       if (detail === 'saved')
         setMessage('备份已保存到你选择的位置，可复制到电脑。');
       else if (detail === 'cancelled') setMessage('已取消文件操作。');
@@ -388,7 +399,14 @@ export default function Home() {
     }
   }
   function download(data: unknown, name = '日常记账备份') {
+    const fullSnapshot = data === book && !demo ? JSON.stringify(book) : null;
     if (isAndroidApp()) {
+      if (exportingFile.current) {
+        setMessage('请先完成或取消当前文件导出。');
+        return;
+      }
+      exportingFile.current = true;
+      pendingFullBackup.current = fullSnapshot;
       window.DailyLedgerAndroid!.exportBackup(
         name + '-' + today() + '.json',
         typeof data === 'string' ? data : JSON.stringify(data, null, 2),
@@ -404,6 +422,14 @@ export default function Home() {
     a.href = url;
     a.download = `${name}-${today()}.json`;
     a.click();
+    if (fullSnapshot)
+      setMessage('已发起下载，请到总览或分类与备份确认文件已保存。');
+    if (fullSnapshot)
+      window.dispatchEvent(
+        new CustomEvent('dailyLedgerFullBackup', {
+          detail: { snapshot: fullSnapshot, confirmed: false },
+        }),
+      );
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function switchDemo() {
@@ -969,6 +995,14 @@ export default function Home() {
               看看示例账本
             </Button>
           </div>
+        )}
+        {ready && !demo && !blocked && (
+          <BackupReminder
+            book={book}
+            settings={view === 'settings'}
+            visible={view === 'settings' || view === 'overview'}
+            onExport={() => download(book)}
+          />
         )}
         {view === 'overview' && (
           <section className="panel current-funds" aria-label="当前资金总额">
@@ -2343,6 +2377,24 @@ export default function Home() {
                 <Button type="submit">保存计划</Button>
               </div>
             </form>
+            {!goalEdit && (
+              <div className="new-goal-calculator">
+                <h2>分期存款计算器</h2>
+                <p className="muted">
+                  也可以在这里直接计算分期并创建计划；上方表单与计算器任选一种保存，不会同时创建两个计划。
+                </p>
+                <InstallmentCalculator
+                  onCreate={(goal) => {
+                    const ok = commit({
+                      ...book,
+                      goals: [...book.goals, goal],
+                    });
+                    if (ok) go('goals');
+                    return ok;
+                  }}
+                />
+              </div>
+            )}
           </section>
         )}
         {view === 'deposit' && goalEdit && (
@@ -2674,7 +2726,7 @@ export default function Home() {
           </>
         )}
         <footer className="footer">
-          日常记账，每天积累一点点。　·　本地离线账本 v0.4
+          日常记账，每天积累一点点。　·　本地离线账本 v0.5
         </footer>
       </main>
     </div>

@@ -17,11 +17,15 @@ export function ShoppingPlans({
   const [selected, setSelected] = useState('');
   const [error, setError] = useState('');
   const [remove, setRemove] = useState('');
+  const [editing, setEditing] = useState('');
   const plan = plans.find((p) => p.id === selected) ?? plans[0];
   function save(next: ShoppingPlan[]) {
     if (disabled) return false;
     const ok = onCommit({ ...book, shoppingPlans: next });
-    if (ok) setError('');
+    if (ok) {
+      setError('');
+      setEditing('');
+    }
     return ok;
   }
   function patch(next: ShoppingPlan) {
@@ -182,78 +186,105 @@ export function ShoppingPlans({
             )}
           </details>
           <h3>物品清单</h3>
-          {plan.items.map((item) => (
-            <form
-              className="shopping-item"
-              key={item.id + ':' + item.name + ':' + item.cents}
-              onSubmit={(e) => {
-                e.preventDefault();
-                submitItem(e.currentTarget, item.id);
-              }}
-            >
-              <label>
-                物品
-                <Input
-                  name="itemName"
-                  aria-label={`物品名称 ${item.name}`}
-                  defaultValue={item.name}
-                  maxLength={100}
-                  required
-                  disabled={disabled}
-                />
-              </label>
-              <label>
-                金额（元）
-                <Input
-                  name="amount"
-                  aria-label={`物品金额 ${item.name}`}
-                  inputMode="decimal"
-                  defaultValue={(item.cents / 100).toFixed(2)}
-                  required
-                  disabled={disabled}
-                />
-              </label>
-              <Button variant="outline" disabled={disabled}>
-                保存修改
-              </Button>
-              <Button
+          {plan.items.map((item) =>
+            editing !== item.id ? (
+              <button
                 type="button"
-                variant="ghost"
-                disabled={disabled}
-                onClick={() => setRemove(item.id)}
+                className="shopping-compact"
+                key={item.id}
+                onClick={() => {
+                  setEditing(item.id);
+                  setRemove('');
+                }}
+                aria-label={`编辑物品 ${item.name}`}
               >
-                删除
-              </Button>
-              {remove === item.id && (
-                <div className="shopping-item-confirm">
-                  删除“{item.name}”？
-                  <Button
-                    type="button"
-                    variant="destructive"
+                <span>{item.name}</span>
+                <strong>{money(item.cents)}</strong>
+                <small>编辑</small>
+              </button>
+            ) : (
+              <form
+                className="shopping-item"
+                key={item.id + ':' + item.name + ':' + item.cents}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitItem(e.currentTarget, item.id);
+                }}
+              >
+                <label>
+                  物品
+                  <Input
+                    name="itemName"
+                    aria-label={`物品名称 ${item.name}`}
+                    defaultValue={item.name}
+                    maxLength={100}
+                    required
                     disabled={disabled}
-                    onClick={() => {
-                      if (
-                        patch({
-                          ...plan,
-                          items: plan.items.filter((i) => i.id !== item.id),
-                        })
-                      )
-                        setRemove('');
-                    }}
-                  >
-                    确认删除物品
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setRemove('')}
-                  >
-                    取消
-                  </Button>
-                </div>
-              )}
-            </form>
-          ))}
+                  />
+                </label>
+                <label>
+                  金额（元）
+                  <Input
+                    name="amount"
+                    aria-label={`物品金额 ${item.name}`}
+                    inputMode="decimal"
+                    defaultValue={(item.cents / 100).toFixed(2)}
+                    required
+                    disabled={disabled}
+                  />
+                </label>
+                <Button variant="outline" disabled={disabled}>
+                  保存修改
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditing('');
+                    setRemove('');
+                  }}
+                >
+                  取消编辑
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={disabled}
+                  onClick={() => setRemove(item.id)}
+                >
+                  删除
+                </Button>
+                {remove === item.id && (
+                  <div className="shopping-item-confirm">
+                    删除“{item.name}”？
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={disabled}
+                      onClick={() => {
+                        if (
+                          patch({
+                            ...plan,
+                            items: plan.items.filter((i) => i.id !== item.id),
+                          })
+                        )
+                          setRemove('');
+                      }}
+                    >
+                      确认删除物品
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setRemove('')}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                )}
+              </form>
+            ),
+          )}
           <form
             className="shopping-item shopping-add"
             onSubmit={(e) => {
