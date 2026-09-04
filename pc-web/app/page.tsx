@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InstallmentCalculator } from '@/components/installment-calculator';
+import { ShoppingPlans } from '@/components/shopping-plans';
 import { BillImporter } from '@/components/bill-importer';
 import { Progress } from '@/components/ui/progress';
 import { ChartContainer } from '@/components/ui/chart';
@@ -74,6 +75,7 @@ import {
 type View =
   | 'overview'
   | 'ledger'
+  | 'shopping'
   | 'goals'
   | 'settings'
   | 'entry'
@@ -85,6 +87,7 @@ const nav = [
   ['overview', '收支总览', LayoutDashboard],
   ['ledger', '账单明细', ArrowLeftRight],
   ['goals', '存款计划', GoalIcon],
+  ['shopping', '购物计划', ShoppingCart],
   ['settings', '分类与备份', Settings2],
 ] as const;
 const categoryIcons: Record<string, typeof Leaf> = {
@@ -689,25 +692,27 @@ export default function Home() {
     .filter((c) => c.value > 0)
     .sort((a, b) => b.value - a.value);
   const title =
-    view === 'overview'
-      ? '每一笔，都离目标更近。'
-      : view === 'import'
-        ? '整理账单，轻松补齐记录。'
-        : view === 'ledger'
-          ? '生活的账，一笔一笔记。'
-          : view === 'goals'
-            ? '把愿望，慢慢存成现实。'
-            : view === 'settings'
-              ? '你的账本，由你保管。'
-              : view === 'entry'
-                ? edit
-                  ? '修改这笔账目'
-                  : '记下今天的一笔'
-                : view === 'goal'
-                  ? goalEdit
-                    ? '调整你的存款计划'
-                    : '给愿望定一个目标'
-                  : '为目标再近一步';
+    view === 'shopping'
+      ? '购物计划'
+      : view === 'overview'
+        ? '每一笔，都离目标更近。'
+        : view === 'import'
+          ? '整理账单，轻松补齐记录。'
+          : view === 'ledger'
+            ? '生活的账，一笔一笔记。'
+            : view === 'goals'
+              ? '把愿望，慢慢存成现实。'
+              : view === 'settings'
+                ? '你的账本，由你保管。'
+                : view === 'entry'
+                  ? edit
+                    ? '修改这笔账目'
+                    : '记下今天的一笔'
+                  : view === 'goal'
+                    ? goalEdit
+                      ? '调整你的存款计划'
+                      : '给愿望定一个目标'
+                    : '为目标再近一步';
   function goalCard(g: Goal, compact = false) {
     const left = remaining(g),
       months = monthsLeft(g);
@@ -892,44 +897,30 @@ export default function Home() {
         data-view={view}
         className={`main ${view === 'entry' || view === 'complete' ? 'focused-entry' : ''}`}
       >
-        <div className="theme-picker" role="group" aria-label="界面配色">
-          <span>界面配色</span>
-          {themes.map((t) => (
-            <Button
-              key={t.id}
-              type="button"
-              className="theme-swatch"
-              style={{ backgroundColor: t.color }}
-              aria-label={t.name}
-              title={t.name}
-              aria-pressed={theme === t.id}
-              onClick={() => changeTheme(t.id)}
-            >
-              {theme === t.id && <Check />}
-            </Button>
-          ))}
-          <small>{themes.find((t) => t.id === theme)?.name}</small>
-        </div>
-        <section className="quick-actions" aria-label="快速记账">
-          {(['expense', 'income'] as Kind[]).map((k) => (
-            <div className="quick-action-item" key={k}>
-              <Button
-                className={`entry-kind-circle ${k} ${view === 'entry' && kind === k ? 'is-active' : ''}`}
-                aria-pressed={view === 'entry' && kind === k}
-                disabled={!ready || (blocked && !demo)}
-                onClick={() => {
-                  if (view === 'entry' && kind === k) return;
-                  addEntry(undefined, k);
-                }}
-              >
-                {k === 'income' ? <ArrowDownRight /> : <ArrowUpRight />}
-                <span>{k === 'income' ? '收入' : '支出'}</span>
-              </Button>
-              <small>{k === 'income' ? '记下一份收获' : '记下一笔花费'}</small>
-            </div>
-          ))}
-        </section>
-        {view !== 'entry' && view !== 'complete' && (
+        {['overview', 'ledger'].includes(view) && (
+          <section className="quick-actions" aria-label="快速记账">
+            {(['expense', 'income'] as Kind[]).map((k) => (
+              <div className="quick-action-item" key={k}>
+                <Button
+                  className={`entry-kind-circle ${k} ${view === 'entry' && kind === k ? 'is-active' : ''}`}
+                  aria-pressed={view === 'entry' && kind === k}
+                  disabled={!ready || (blocked && !demo)}
+                  onClick={() => {
+                    if (view === 'entry' && kind === k) return;
+                    addEntry(undefined, k);
+                  }}
+                >
+                  {k === 'income' ? <ArrowDownRight /> : <ArrowUpRight />}
+                  <span>{k === 'income' ? '收入' : '支出'}</span>
+                </Button>
+                <small>
+                  {k === 'income' ? '记下一份收获' : '记下一笔花费'}
+                </small>
+              </div>
+            ))}
+          </section>
+        )}
+        {!['entry', 'complete', 'goals'].includes(view) && (
           <header>
             <div>
               <p className="eyebrow">DAILY LEDGER / 日常记账</p>
@@ -1893,28 +1884,42 @@ export default function Home() {
         )}
         {view === 'goals' && (
           <>
-            <div className="calculator-entry">
-              <div>
-                <h2>把一个目标，拆成每月的小计划</h2>
-                <p className="muted">
-                  填入旅行、购物或备用金预算，比较几种分期存款安排。
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => setShowCalculator((v) => !v)}
-              >
-                {showCalculator ? '收起计算器' : '打开分期存款计算器'}
+            <div className="toolbar">
+              <h1>存款计划</h1>
+              <Button onClick={() => addGoal()}>
+                <Plus />
+                新建计划
               </Button>
             </div>
-            {showCalculator && (
-              <InstallmentCalculator
-                onCreate={(goal) => {
-                  const ok = commit({ ...book, goals: [...book.goals, goal] });
-                  if (ok) setShowCalculator(false);
-                  return ok;
-                }}
-              />
+            <h2>正在存款的项目</h2>
+            <div className="backup-grid">
+              {unfinished.map((g) => (
+                <section className="panel" key={g.id}>
+                  {goalCard(g)}
+                </section>
+              ))}
+            </div>
+            {!unfinished.length && (
+              <div className="panel empty">
+                目前没有进行中的存款计划。
+                <Button variant="link" onClick={() => addGoal()}>
+                  创建第一个目标
+                </Button>
+              </div>
+            )}
+            {book.goals.length > unfinished.length && (
+              <details className="panel">
+                <summary>
+                  已完成的计划（{book.goals.length - unfinished.length}）
+                </summary>
+                <div className="backup-grid">
+                  {book.goals
+                    .filter((g) => !unfinished.some((u) => u.id === g.id))
+                    .map((g) => (
+                      <section key={g.id}>{goalCard(g)}</section>
+                    ))}
+                </div>
+              </details>
             )}
             <div className="notice">
               <Bell size={17} />
@@ -1948,25 +1953,63 @@ export default function Home() {
                 <small>让期待，一件件发生</small>
               </article>
             </section>
-            <div className="backup-grid">
-              {book.goals.map((g) => (
-                <section className="panel" key={g.id}>
-                  {goalCard(g)}
-                </section>
-              ))}
-            </div>
-            {!book.goals.length && (
-              <div className="panel empty">
-                还没有存款计划。
-                <Button variant="link" onClick={() => addGoal()}>
-                  创建第一个目标
-                </Button>
-              </div>
-            )}
             <p className="muted">
               分期完成状态会随备份保存。普通存入/取出暂不保留逐笔历史；请勿把同一笔存款分配给多个目标。
             </p>
+            <div className="calculator-entry">
+              <div>
+                <h2>把一个目标，拆成每月的小计划</h2>
+                <p className="muted">
+                  填入旅行、购物或备用金预算，比较几种分期存款安排。
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => setShowCalculator((v) => !v)}
+              >
+                {showCalculator ? '收起计算器' : '打开分期存款计算器'}
+              </Button>
+            </div>
+            {showCalculator && (
+              <InstallmentCalculator
+                onCreate={(goal) => {
+                  const ok = commit({ ...book, goals: [...book.goals, goal] });
+                  if (ok) setShowCalculator(false);
+                  return ok;
+                }}
+              />
+            )}
           </>
+        )}
+        {view === 'shopping' && (
+          <ShoppingPlans
+            book={book}
+            disabled={!ready || (blocked && !demo)}
+            onCommit={commit}
+          />
+        )}
+        {view === 'settings' && (
+          <section className="panel">
+            <h2>界面配色</h2>{' '}
+            <div className="theme-picker" role="group" aria-label="界面配色">
+              <span>界面配色</span>
+              {themes.map((t) => (
+                <Button
+                  key={t.id}
+                  type="button"
+                  className="theme-swatch"
+                  style={{ backgroundColor: t.color }}
+                  aria-label={t.name}
+                  title={t.name}
+                  aria-pressed={theme === t.id}
+                  onClick={() => changeTheme(t.id)}
+                >
+                  {theme === t.id && <Check />}
+                </Button>
+              ))}
+              <small>{themes.find((t) => t.id === theme)?.name}</small>
+            </div>
+          </section>
         )}
         {view === 'entry' && (
           <section className={`quick-entry ${kind}`}>
@@ -2631,7 +2674,7 @@ export default function Home() {
           </>
         )}
         <footer className="footer">
-          日常记账，每天积累一点点。　·　本地离线账本 v0.3
+          日常记账，每天积累一点点。　·　本地离线账本 v0.4
         </footer>
       </main>
     </div>

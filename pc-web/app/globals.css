@@ -2109,3 +2109,125 @@ select:focus-visible {
     padding-bottom: 12px;
   }
 }
+.shopping-plans {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.shopping-create {
+  display: flex;
+  gap: 12px;
+  margin: 16px 0;
+}
+.shopping-create input {
+  flex: 1;
+  min-width: 0;
+}
+.shopping-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.shopping-tabs button {
+  height: auto;
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.shopping-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.shopping-total h2 {
+  overflow-wrap: anywhere;
+}
+.shopping-total strong {
+  color: var(--theme-strong);
+  font-size: 32px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.shopping-manage {
+  margin: 16px 0 24px;
+}
+.shopping-manage summary {
+  cursor: pointer;
+  padding: 12px 0;
+  color: var(--theme-strong);
+}
+.shopping-item {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: end;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.shopping-item label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+.shopping-item input {
+  width: 100%;
+  min-width: 0;
+}
+.shopping-item-confirm {
+  grid-column: 1/-1;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.shopping-add {
+  margin-top: 18px;
+  padding: 16px;
+  background: var(--theme-soft);
+  border-radius: 14px;
+}
+@media (max-width: 700px) {
+  .sidebar nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .sidebar nav button {
+    font-size: 10px;
+  }
+  .shopping-item {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+  .shopping-item button,
+  .shopping-create button {
+    min-height: 44px;
+  }
+  .shopping-create {
+    flex-wrap: wrap;
+  }
+  .shopping-create input {
+    flex-basis: 100%;
+  }
+  .shopping-create button {
+    width: 100%;
+  }
+  .main[data-view='settings'] .theme-picker {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin: 16px 0 0;
+  }
+  .main[data-view='goals'] > .toolbar {
+    align-items: center;
+    margin: 8px 0 20px;
+  }
+  .main[data-view='goals'] > .toolbar h1 {
+    font-size: 24px;
+  }
+  .main[data-view='goals'] > h2 {
+    font-size: 16px;
+    margin-bottom: 16px;
+  }
+}

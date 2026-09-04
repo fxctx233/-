@@ -631,3 +631,69 @@ test('backup preserves recorded time and notes while accepting old entries witho
     assert.throws(() => validateBook(raw));
   }
 });
+
+void test('shopping plans survive backup and ledger mutations without spending funds', () => {
+  const original = adjustCurrentFunds(demoBook(), 'set', 500000);
+  const plans = [
+    {
+      id: 'shop-a',
+      name: '旅行装备',
+      items: [
+        { id: 'item-a', name: '行李箱', cents: 29999 },
+        { id: 'item-b', name: '雨伞', cents: 2000 },
+      ],
+    },
+    { id: 'shop-b', name: '家居采购', items: [] },
+  ];
+  const next = applyFundsChange(original, {
+    ...original,
+    shoppingPlans: plans,
+  });
+  assert.equal(currentFunds(next), 500000);
+  assert.deepEqual(next.entries, original.entries);
+  assert.deepEqual(
+    validateBook(JSON.parse(JSON.stringify(next))).shoppingPlans,
+    plans,
+  );
+  plans[0].items[0].name = '修改外部对象';
+  assert.equal(next.shoppingPlans?.[0].items[0].name, '行李箱');
+  const entry = {
+    id: 'new-spend',
+    kind: 'expense' as const,
+    category: '餐饮',
+    cents: 100,
+    date: '2026-09-04',
+    note: '',
+  };
+  const spent = applyFundsChange(next, {
+    ...next,
+    entries: [...next.entries, entry],
+  });
+  assert.equal(currentFunds(spent), 499900);
+  assert.deepEqual(spent.shoppingPlans, next.shoppingPlans);
+  assert.equal(validateBook(emptyBook()).shoppingPlans, undefined);
+  assert.throws(() =>
+    validateBook({
+      ...next,
+      shoppingPlans: [{ id: 'bad', name: '', items: [] }],
+    }),
+  );
+  assert.throws(() =>
+    validateBook({
+      ...next,
+      shoppingPlans: [
+        {
+          id: 'bad',
+          name: '测试',
+          items: [{ id: 'bad-item', name: '物品', cents: -1 }],
+        },
+      ],
+    }),
+  );
+  assert.throws(() =>
+    validateBook({
+      ...next,
+      shoppingPlans: [next.shoppingPlans![0], next.shoppingPlans![0]],
+    }),
+  );
+});

@@ -107,7 +107,13 @@ export function entryMoment(
     ? { date: original.date, ...(original.time ? { time: original.time } : {}) }
     : { date: today(now), time: currentTime(now) };
 }
+export type ShoppingPlan = {
+  id: string;
+  name: string;
+  items: { id: string; name: string; cents: number }[];
+};
 export type Book = {
+  shoppingPlans?: ShoppingPlan[];
   version: 1;
   currentFunds?: number;
   entries: Entry[];
@@ -382,6 +388,33 @@ export function validateBook(raw: unknown): Book {
   if (x.entries.length > 50000 || x.goals.length > 1000)
     throw new Error('备份记录数量超出上限（账目 50,000 笔，计划 1,000 个）。');
   const ids = new Set<string>();
+  if (x.shoppingPlans !== undefined) {
+    if (!Array.isArray(x.shoppingPlans) || x.shoppingPlans.length > 200)
+      throw new Error('购物计划数量无效。');
+    for (const plan of x.shoppingPlans) {
+      if (
+        !plan ||
+        !text(plan.id, 100) ||
+        ids.has(plan.id) ||
+        !text(plan.name, 60) ||
+        !Array.isArray(plan.items) ||
+        plan.items.length > 1000
+      )
+        throw new Error('购物计划数据无效。');
+      ids.add(plan.id);
+      for (const item of plan.items) {
+        if (
+          !item ||
+          !text(item.id, 100) ||
+          ids.has(item.id) ||
+          !text(item.name, 100) ||
+          !amount(item.cents)
+        )
+          throw new Error('购物物品数据无效。');
+        ids.add(item.id);
+      }
+    }
+  }
   for (const e of x.entries) {
     if (
       !e ||
@@ -486,6 +519,19 @@ export function validateBook(raw: unknown): Book {
   }
   return {
     version: 1,
+    ...(x.shoppingPlans !== undefined
+      ? {
+          shoppingPlans: x.shoppingPlans.map((p) => ({
+            id: p.id,
+            name: p.name,
+            items: p.items.map((i) => ({
+              id: i.id,
+              name: i.name,
+              cents: i.cents,
+            })),
+          })),
+        }
+      : {}),
     ...(x.currentFunds !== undefined ? { currentFunds: x.currentFunds } : {}),
     categories: {
       income: x.categories.income.includes('退款')
