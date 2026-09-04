@@ -2240,7 +2240,6 @@ select:focus-visible {
   padding: 18px 4px;
   border-bottom: 1px solid var(--border);
   background: transparent;
-  cursor: pointer;
   min-height: 56px;
 }
 .shopping-compact span {
@@ -2252,12 +2251,8 @@ select:focus-visible {
   color: var(--theme-strong);
   font-variant-numeric: tabular-nums;
 }
-.shopping-compact small {
-  font-size: 11px;
-  color: var(--theme-mid);
-}
-.shopping-compact:focus-visible {
-  outline: 2px solid var(--theme-strong);
+.shopping-compact strong {
+  flex-shrink: 0;
 }
 .new-goal-calculator {
   border-top: 1px solid var(--border);
@@ -2292,8 +2287,20 @@ select:focus-visible {
   width: auto;
   border: 0;
 }
-.shopping-row > button {
-  min-height: 44px;
+.shopping-row-actions {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+}
+.shopping-row-actions > button {
+  min-width: 96px;
+  min-height: 52px;
+  font-size: 16px;
+}
+.shopping-item > button,
+.shopping-item-confirm > button {
+  min-height: 48px;
+  font-size: 16px;
 }
 .shopping-row .shopping-item-confirm {
   width: 100%;
@@ -2302,4 +2309,21 @@ select:focus-visible {
 .shopping-item-confirm span {
   width: 100%;
   overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .shopping-row {
+    gap: 0;
+    padding-bottom: 8px;
+  }
+  .shopping-row .shopping-compact {
+    flex-basis: 100%;
+    padding-bottom: 4px;
+  }
+  .shopping-row-actions {
+    width: 100%;
+  }
+  .shopping-row-actions > button {
+    flex: 1;
+    min-width: 0;
+  }
 }

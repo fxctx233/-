@@ -210,28 +210,37 @@ export function ShoppingPlans({
           {plan.items.map((item) =>
             editing !== item.id ? (
               <div className="shopping-row" key={item.id}>
-                <button
-                  type="button"
-                  className="shopping-compact"
-                  onClick={() => {
-                    setEditing(item.id);
-                    setRemove('');
-                  }}
-                  aria-label={`编辑物品 ${item.name}`}
-                >
+                <div className="shopping-compact">
                   <span>{item.name}</span>
                   <strong>{money(item.cents)}</strong>
-                  <small>编辑</small>
-                </button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={disabled}
-                  aria-label={`删除物品 ${item.name}`}
-                  onClick={() => setRemove(item.id)}
+                </div>
+                <div
+                  className="shopping-row-actions"
+                  role="group"
+                  aria-label={`物品操作 ${item.name}`}
                 >
-                  删除
-                </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={disabled}
+                    aria-label={`编辑物品 ${item.name}`}
+                    onClick={() => {
+                      setEditing(item.id);
+                      setRemove('');
+                    }}
+                  >
+                    编辑
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={disabled}
+                    aria-label={`删除物品 ${item.name}`}
+                    onClick={() => setRemove(item.id)}
+                  >
+                    删除
+                  </Button>
+                </div>
                 {remove === item.id && (
                   <div className="shopping-item-confirm" role="alert">
                     <span>
