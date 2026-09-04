@@ -89,7 +89,7 @@ export function ShoppingPlans({
             required
             disabled={disabled}
           />
-          <Button disabled={disabled || plans.length >= 200}>
+          <Button type="submit" disabled={disabled || plans.length >= 200}>
             新建购物计划
           </Button>
         </form>
@@ -155,7 +155,7 @@ export function ShoppingPlans({
                 required
                 disabled={disabled}
               />
-              <Button disabled={disabled}>保存名称</Button>
+              <Button type="submit" disabled={disabled}>保存名称</Button>
             </form>
             <Button
               variant="destructive"
@@ -233,7 +233,7 @@ export function ShoppingPlans({
                     disabled={disabled}
                   />
                 </label>
-                <Button variant="outline" disabled={disabled}>
+                <Button type="submit" variant="outline" disabled={disabled}>
                   保存修改
                 </Button>
                 <Button
@@ -314,7 +314,7 @@ export function ShoppingPlans({
                 disabled={disabled}
               />
             </label>
-            <Button disabled={disabled || plan.items.length >= 1000}>
+            <Button type="submit" disabled={disabled || plan.items.length >= 1000}>
               添加物品
             </Button>
           </form>
