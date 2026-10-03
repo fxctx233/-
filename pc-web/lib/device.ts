@@ -4,6 +4,11 @@ type AndroidBridge = {
   setItem(key: string, value: string): string;
   exportBackup(name: string, content: string): void;
   importBackup(): void;
+  getReadOnlySyncState?(): string;
+  openReadOnlySyncSettings?(): void;
+  startReadOnlySync?(source: 'alipay' | 'wechat', since: string): string;
+  stopReadOnlySync?(): void;
+  clearReadOnlySync?(): void;
 };
 declare global {
   interface Window {
