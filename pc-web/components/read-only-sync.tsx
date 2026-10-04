@@ -67,7 +67,7 @@ export function ReadOnlySync({
             只读同步助手 <span className="badge">实验版</span>
           </h2>
           <p className="muted">
-            主动启动后才读取账单列表；识别结果确认前不会改变余额。
+            主动启动后沿“我的 → 账单”或“我 → 服务 → 钱包 → 账单”进入列表，并下滑读取较早记录；确认前不会改变余额。
           </p>
         </div>
         <Button

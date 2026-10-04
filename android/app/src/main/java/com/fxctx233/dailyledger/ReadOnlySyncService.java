@@ -5,6 +5,8 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -19,7 +21,24 @@ public class ReadOnlySyncService extends AccessibilityService {
     static final String WECHAT = "com.tencent.mm";
     private static final Pattern AMOUNT = Pattern.compile("(?:[+\\-]?\\s*[¥￥]\\s*\\d{1,8}(?:\\.\\d{1,2})?|[+\\-]\\s*\\d{1,8}\\.\\d{2})");
     private static final String[] DANGER = {"支付密码", "请输入密码", "验证身份", "指纹验证", "人脸验证", "确认付款", "立即付款", "确认支付"};
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable inspect = () -> {
+        inspectScheduled = false;
+        inspectCurrentScreen();
+    };
+    private boolean inspectScheduled;
     private long lastAction;
+
+    @Override protected void onServiceConnected() {
+        super.onServiceConnected();
+        if (running()) schedule(300);
+    }
+
+    private void schedule(long delay) {
+        if (inspectScheduled || !running()) return;
+        inspectScheduled = true;
+        handler.postDelayed(inspect, delay);
+    }
 
     static boolean isEnabled(Context context) {
         AccessibilityManager manager = (AccessibilityManager) context.getSystemService(Context.ACCESSIBILITY_SERVICE);
@@ -43,7 +62,7 @@ public class ReadOnlySyncService extends AccessibilityService {
             state.put("message", "正在打开支付应用，请保持屏幕解锁。遇到验证页面会自动停止。");
             state.put("groups", new JSONArray());
             prefs(context).edit().putString("state", state.toString()).putString("stage", "start")
-                .putInt("steps", 0).putInt("scrolls", 0).putInt("empty", 0).apply();
+                .putInt("steps", 0).putInt("scrolls", 0).putInt("empty", 0).putInt("billWait", 0).apply();
         } catch (Exception ignored) {}
     }
 
@@ -57,7 +76,7 @@ public class ReadOnlySyncService extends AccessibilityService {
     }
 
     static void clear(Context context) {
-        prefs(context).edit().remove("state").remove("stage").remove("steps").remove("scrolls").remove("empty").apply();
+        prefs(context).edit().remove("state").remove("stage").remove("steps").remove("scrolls").remove("empty").remove("billWait").apply();
     }
 
     static String stateJson(Context context) {
@@ -80,15 +99,24 @@ public class ReadOnlySyncService extends AccessibilityService {
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         if (!running() || event == null || event.getPackageName() == null) return;
+        String source;
+        try { source = state(this).optString("source"); }
+        catch (Exception e) { return; }
+        String expected = "alipay".equals(source) ? ALIPAY : WECHAT;
+        if (expected.contentEquals(event.getPackageName())) schedule(350);
+    }
+
+    private void inspectCurrentScreen() {
+        if (!running()) return;
         long now = System.currentTimeMillis();
-        if (now - lastAction < 900) return;
+        if (now - lastAction < 900) { schedule(900 - (now - lastAction)); return; }
         JSONObject current;
         try { current = state(this); } catch (Exception e) { return; }
         String source = current.optString("source");
         String expected = "alipay".equals(source) ? ALIPAY : WECHAT;
-        if (!expected.contentEquals(event.getPackageName())) return;
         AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) return;
+        if (root == null) { schedule(1100); return; }
+        if (!expected.equals(String.valueOf(root.getPackageName()))) { root.recycle(); schedule(1100); return; }
         lastAction = now;
         List<String> screen = texts(root, 0, 240);
         String all = String.join(" · ", screen);
@@ -111,6 +139,7 @@ public class ReadOnlySyncService extends AccessibilityService {
         if ("bill".equals(stage)) readBill(root, screen, current);
         else navigate(root, source, stage);
         root.recycle();
+        schedule(1100);
     }
 
     private void navigate(AccessibilityNodeInfo root, String source, String stage) {
@@ -140,6 +169,12 @@ public class ReadOnlySyncService extends AccessibilityService {
             for (int i = 0; i < groups.length(); i++) known.add(groups.optJSONObject(i).optString("signature"));
             List<List<String>> found = new ArrayList<>();
             collectGroups(root, found);
+            if (found.isEmpty() && groups.length() == 0) {
+                int wait = prefs(this).getInt("billWait", 0) + 1;
+                prefs(this).edit().putInt("billWait", wait).apply();
+                if (wait >= 7) finish("已进入账单入口，但没有读到可识别的金额。请检查支付宝或微信是否显示账单列表。", true);
+                return;
+            }
             String contextDate = screen.stream().filter(this::looksLikeDate).findFirst().orElse("");
             int added = 0;
             for (List<String> values : found) {
@@ -270,12 +305,22 @@ public class ReadOnlySyncService extends AccessibilityService {
     }
 
     private void finish(String message, boolean error) {
+        handler.removeCallbacks(inspect);
+        inspectScheduled = false;
         stop(this, message, error);
         Intent intent = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         try { startActivity(intent); } catch (RuntimeException ignored) {}
     }
 
     @Override public void onInterrupt() {
+        handler.removeCallbacks(inspect);
+        inspectScheduled = false;
         if (running()) stop(this, "辅助功能服务被系统中断，账本没有改变。", true);
+    }
+
+    @Override public void onDestroy() {
+        handler.removeCallbacks(inspect);
+        inspectScheduled = false;
+        super.onDestroy();
     }
 }
