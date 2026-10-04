@@ -32,7 +32,7 @@ jobs:
         working-directory: pc-web
       - run: npx tsc --noEmit
         working-directory: pc-web
-      - run: node --experimental-strip-types --test lib/ledger.test.ts lib/bill-import.test.ts
+      - run: node --experimental-strip-types --test lib/ledger.test.ts lib/bill-import.test.ts lib/bill-files.test.ts
         working-directory: pc-web
       - run: npm run build:pages
         working-directory: pc-web

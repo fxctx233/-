@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="read_only_sync_description">仅在你主动开始同步后，读取支付宝或微信的账单列表并返回日常记账。不会点击付款、转账、确认支付或身份验证页面。</string>
-</resources>

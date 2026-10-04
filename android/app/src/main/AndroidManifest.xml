@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Offline app: intentionally no INTERNET or broad storage permissions. -->
-    <queries>
-        <package android:name="com.eg.android.AlipayGphone"/>
-        <package android:name="com.tencent.mm"/>
-    </queries>
     <application android:label="日常记账" android:theme="@style/AppTheme"
         android:icon="@drawable/ic_launcher" android:allowBackup="false"
         android:fullBackupContent="false" android:usesCleartextTraffic="false">
@@ -14,15 +10,22 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
-        <service android:name=".ReadOnlySyncService" android:exported="false"
-            android:label="日常记账只读同步助手"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService"/>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/zip"/>
+                <data android:mimeType="application/x-zip-compressed"/>
+                <data android:mimeType="application/octet-stream"/>
+                <data android:mimeType="text/csv"/>
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
             </intent-filter>
-            <meta-data android:name="android.accessibilityservice"
-                android:resource="@xml/read_only_sync_service"/>
-        </service>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content" android:mimeType="application/zip"/>
+                <data android:scheme="content" android:mimeType="application/x-zip-compressed"/>
+                <data android:scheme="content" android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

@@ -631,68 +631,6 @@ label {
     padding: 20px;
   }
 }
-.readonly-sync {
-  margin-bottom: 20px;
-}
-.readonly-sync h2 .badge {
-  margin-left: 8px;
-  vertical-align: middle;
-}
-.readonly-sync-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 18px 0;
-}
-.readonly-sync-actions button {
-  min-height: 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.readonly-sync-actions small {
-  font-weight: 400;
-  opacity: 0.82;
-}
-.readonly-sync-result {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 14px;
-  background: var(--theme-soft);
-}
-.readonly-sync-disclosure {
-  display: grid;
-  gap: 10px;
-  margin: 14px 0;
-  padding: 16px;
-  border: 1px solid #d3aa72;
-  border-radius: 14px;
-  background: #fff8e9;
-  color: #533d20;
-}
-.readonly-sync-disclosure p {
-  margin: 0;
-  line-height: 1.7;
-}
-.readonly-sync-result pre {
-  max-height: 260px;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 11px;
-}
-@media (max-width: 700px) {
-  .readonly-sync > .toolbar {
-    align-items: flex-start;
-  }
-  .readonly-sync > .toolbar > button {
-    min-height: 46px;
-  }
-  .readonly-sync-actions {
-    grid-template-columns: 1fr;
-  }
-}
 .category-summary {
   display: flex;
   gap: 12px;

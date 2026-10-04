@@ -8,7 +8,6 @@ import { InstallmentCalculator } from '@/components/installment-calculator';
 import { BackupReminder } from '@/components/backup-reminder';
 import { ShoppingPlans } from '@/components/shopping-plans';
 import { BillImporter } from '@/components/bill-importer';
-import { ReadOnlySync } from '@/components/read-only-sync';
 import { Progress } from '@/components/ui/progress';
 import { ChartContainer } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
@@ -174,6 +173,7 @@ export default function Home() {
     [categoryKind, setCategoryKind] = useState<Kind>('expense');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [importOpened, setImportOpened] = useState(false);
+  const [sharedBill, setSharedBill] = useState<{ name: string; base64: string } | null>(null);
   const [confirmClearEntries, setConfirmClearEntries] = useState(false);
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
   const [bulkCategory, setBulkCategory] = useState('');
@@ -220,6 +220,26 @@ export default function Home() {
   }, []);
   const [pending, setPending] = useState<Book | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    const receive = () => {
+      try {
+        const raw = window.DailyLedgerAndroid?.takeSharedBill();
+        if (!raw) return;
+        const file = JSON.parse(raw) as { name?: unknown; base64?: unknown };
+        if (typeof file.name !== 'string' || typeof file.base64 !== 'string')
+          throw new Error('分享的账单格式无效。');
+        setSharedBill({ name: file.name, base64: file.base64 });
+        setImportOpened(true);
+        setView('import');
+      } catch {
+        setError('无法读取分享的账单，请在导入页手动选择文件。');
+      }
+    };
+    window.addEventListener('dailyLedgerSharedBill', receive);
+    receive();
+    return () => window.removeEventListener('dailyLedgerSharedBill', receive);
+  }, []);
   useEffect(() => {
     const imported = (event: Event) => {
       try {
@@ -1016,91 +1036,82 @@ export default function Home() {
           />
         )}
         {view === 'overview' && (
-          <>
-            <ReadOnlySync
-              book={book}
-              disabled={!ready || blocked || demo}
-              onCommit={commit}
-            />
-            <section className="panel current-funds" aria-label="当前资金总额">
-              <div className="current-funds-total">
-                <h2>当前资金总额</h2>
-                <strong>{money(currentFunds(book))}</strong>
-                <p className="muted">
-                  {book.currentFunds === undefined
-                    ? '暂按已有收支净额计算，可设置为你的实际余额。'
-                    : '支出自动扣减，收入自动增加；可手动校准。'}
-                </p>
-              </div>
-              <form
-                key={demo ? 'demo-funds' : 'real-funds'}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!ready || (blocked && !demo)) return;
-                  const form = e.currentTarget;
-                  try {
-                    const rawAmount = String(
-                      new FormData(form).get('fundsAmount'),
-                    ).trim();
-                    const value =
-                      fundsAction === 'set' && rawAmount.startsWith('-')
-                        ? -cents(rawAmount.slice(1))
-                        : cents(rawAmount);
-                    const next = adjustCurrentFunds(book, fundsAction, value);
-                    if (commit(next)) {
-                      form.reset();
-                      setMessage(
-                        `当前资金总额已调整为 ${money(next.currentFunds!)}。${demo ? '示例调整不影响真实账本。' : '已保存到本地，不会新增收支账目。'}`,
-                      );
-                    }
-                  } catch (e) {
-                    setError((e as Error).message);
+          <section className="panel current-funds" aria-label="当前资金总额">
+            <div className="current-funds-total">
+              <h2>当前资金总额</h2>
+              <strong>{money(currentFunds(book))}</strong>
+              <p className="muted">
+                {book.currentFunds === undefined
+                  ? '暂按已有收支净额计算，可设置为你的实际余额。'
+                  : '支出自动扣减，收入自动增加；可手动校准。'}
+              </p>
+            </div>
+            <form
+              key={demo ? 'demo-funds' : 'real-funds'}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!ready || (blocked && !demo)) return;
+                const form = e.currentTarget;
+                try {
+                  const rawAmount = String(
+                    new FormData(form).get('fundsAmount'),
+                  ).trim();
+                  const value =
+                    fundsAction === 'set' && rawAmount.startsWith('-')
+                      ? -cents(rawAmount.slice(1))
+                      : cents(rawAmount);
+                  const next = adjustCurrentFunds(book, fundsAction, value);
+                  if (commit(next)) {
+                    form.reset();
+                    setMessage(
+                      `当前资金总额已调整为 ${money(next.currentFunds!)}。${demo ? '示例调整不影响真实账本。' : '已保存到本地，不会新增收支账目。'}`,
+                    );
                   }
-                }}
-              >
-                <label>
-                  调整方式
-                  <select
-                    aria-label="资金调整方式"
-                    value={fundsAction}
-                    onChange={(e) =>
-                      setFundsAction(
-                        e.target.value as 'set' | 'add' | 'subtract',
-                      )
-                    }
-                  >
-                    <option value="set">直接设置总额</option>
-                    <option value="add">增加资金</option>
-                    <option value="subtract">减少资金</option>
-                  </select>
-                </label>
-                <label>
-                  金额（元）
-                  <Input
-                    name="fundsAmount"
-                    aria-label="资金调整金额"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    required
-                  />
-                </label>
-                <Button type="submit" disabled={!ready || (blocked && !demo)}>
-                  确认调整余额
-                </Button>
-              </form>
-              <details className="muted current-funds-note">
-                <summary>余额如何联动与校准</summary>
-                <p>
-                  新增、补记或导入收支会同步增减余额；修改按差额调整，删除或撤销会反向调整。改分类和存款计划不重复扣款。手动设置用于校准实际余额，历史账目不会再扣一遍；恢复完整备份直接使用备份余额。
-                </p>
-              </details>
-              {currentFunds(book) < 0 && (
-                <p className="negative current-funds-note">
-                  余额为负：可能是资金不足或尚未设置初始余额，可在上方校准；不会阻止你记录真实支出。
-                </p>
-              )}
-            </section>
-          </>
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              <label>
+                调整方式
+                <select
+                  aria-label="资金调整方式"
+                  value={fundsAction}
+                  onChange={(e) =>
+                    setFundsAction(e.target.value as 'set' | 'add' | 'subtract')
+                  }
+                >
+                  <option value="set">直接设置总额</option>
+                  <option value="add">增加资金</option>
+                  <option value="subtract">减少资金</option>
+                </select>
+              </label>
+              <label>
+                金额（元）
+                <Input
+                  name="fundsAmount"
+                  aria-label="资金调整金额"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  required
+                />
+              </label>
+              <Button type="submit" disabled={!ready || (blocked && !demo)}>
+                确认调整余额
+              </Button>
+            </form>
+            <details className="muted current-funds-note">
+              <summary>余额如何联动与校准</summary>
+              <p>
+                新增、补记或导入收支会同步增减余额；修改按差额调整，删除或撤销会反向调整。改分类和存款计划不重复扣款。手动设置用于校准实际余额，历史账目不会再扣一遍；恢复完整备份直接使用备份余额。
+              </p>
+            </details>
+            {currentFunds(book) < 0 && (
+              <p className="negative current-funds-note">
+                余额为负：可能是资金不足或尚未设置初始余额，可在上方校准；不会阻止你记录真实支出。
+              </p>
+            )}
+          </section>
         )}
         {['overview', 'ledger'].includes(view) && (
           <>
@@ -1917,6 +1928,8 @@ export default function Home() {
               book={book}
               disabled={!ready || blocked}
               demo={demo}
+              sharedBill={sharedBill}
+              onSharedBillTaken={() => setSharedBill(null)}
               onBack={() => go('ledger')}
               onBackup={() => download(book)}
               onCommit={(next) => {

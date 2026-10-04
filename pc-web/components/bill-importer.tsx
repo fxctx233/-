@@ -30,6 +30,8 @@ export function BillImporter({
   onCommit,
   onBack,
   onBackup,
+  sharedBill,
+  onSharedBillTaken,
 }: {
   book: Book;
   disabled: boolean;
@@ -37,8 +39,11 @@ export function BillImporter({
   onCommit: (next: Book) => boolean;
   onBack: () => void;
   onBackup: () => void;
+  sharedBill?: { name: string; base64: string } | null;
+  onSharedBillTaken?: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const handledShare = useRef<typeof sharedBill>(null);
   const [rows, setRows] = useState<BillRow[]>([]);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
@@ -54,6 +59,27 @@ export function BillImporter({
   const [reviewed, setReviewed] = useState(false),
     [confirming, setConfirming] = useState(false);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [zipPasswords, setZipPasswords] = useState<Record<number, string>>({});
+  useEffect(() => {
+    if (!sharedBill || sharedBill === handledShare.current || disabled) return;
+    handledShare.current = sharedBill;
+    onSharedBillTaken?.();
+    if (demo) {
+      setError('请先返回真实账本，再导入个人账单。');
+      return;
+    }
+    try {
+      if (sharedBill.base64.length > 14 * 1024 * 1024)
+        throw new Error('分享的账单超过 10 MB。');
+      const binary = atob(sharedBill.base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      handleFiles([new File([bytes], sharedBill.name)]);
+    } catch {
+      setError('分享的账单无法读取，请在导入页手动选择原始文件。');
+    }
+  }, [sharedBill, disabled, demo]);
   useEffect(() => {
     if (!rows.length) return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -104,7 +130,7 @@ export function BillImporter({
     setReviewed(false);
     setConfirming(false);
   }
-  async function load(files: File[]) {
+  async function load(files: File[], passwords: Record<number, string> = {}) {
     if (!files.length) return;
     if (files.length > 8) {
       setError('一次最多选择 8 份账单。');
@@ -117,20 +143,34 @@ export function BillImporter({
     setReviewed(false);
     const errors: string[] = [],
       added: BillRow[] = [];
-    for (const file of files) {
+    const retryFiles: File[] = [];
+    for (const [index, file] of files.entries()) {
       try {
-        added.push(...(await readBillFile(file, book)));
+        added.push(...(await readBillFile(file, book, passwords[index] ?? '')));
       } catch (e) {
-        errors.push(`${file.name}：${(e as Error).message}`);
+        const message = (e as Error).message;
+        errors.push(`${file.name}：${message}`);
+        if (/\.zip$/i.test(file.name) && /密码/.test(message))
+          retryFiles.push(file);
       }
     }
     if (rows.length + added.length > 50000)
       setError('本次预览不能超过 50,000 条，请分批处理。');
     else setRows(markDuplicates([...rows, ...added], book));
     setFileErrors(errors);
+    setPendingFiles(retryFiles);
+    setZipPasswords({});
     setBusy(false);
     setPage(0);
     if (input.current) input.current.value = '';
+  }
+  function handleFiles(files: File[]) {
+    if (files.some((file) => /\.zip$/i.test(file.name))) {
+      setPendingFiles(files);
+      setZipPasswords({});
+      setError('');
+      setFileErrors([]);
+    } else void load(files);
   }
   function bulk(field: 'category' | 'activity') {
     const ids = new Set(shown.filter((r) => r.include).map((r) => r.id));
@@ -200,8 +240,7 @@ export function BillImporter({
           <span className="badge">本地导入 · 预览后再保存</span>
           <h2>把账单整理成你的账本</h2>
           <p className="muted">
-            选择支付宝 CSV、微信 XLSX /
-            CSV，可同时导入。原始文件不上传、不修改，确认后追加到账本。
+            选择支付宝 CSV、微信 XLSX／CSV，或邮件中的原始 ZIP，可同时导入。加密 ZIP 在本机输入密码解压，确认后追加到账本。
           </p>
         </div>
         <Button
@@ -219,14 +258,64 @@ export function BillImporter({
           ref={input}
           aria-label="选择微信或支付宝账单"
           type="file"
-          accept=".csv,.xlsx"
+          accept=".csv,.xlsx,.zip"
           multiple
           hidden
-          onChange={(e) => void load(Array.from(e.target.files ?? []))}
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = '';
+            handleFiles(files);
+          }}
         />
+        {pendingFiles.length > 0 && (
+          <form
+            className="import-zip-passwords"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!busy) void load(pendingFiles, zipPasswords);
+            }}
+          >
+            <strong>读取原始压缩包</strong>
+            <p className="muted">从账单邮件或支付应用取得解压密码。密码只用于本次读取，不保存到账本。</p>
+            {pendingFiles.map((file, index) =>
+              /\.zip$/i.test(file.name) ? (
+                <label key={`${file.name}-${index}`}>
+                  <span>{file.name} 的解压密码</span>
+                  <Input
+                    type="password"
+                    autoComplete="off"
+                    value={zipPasswords[index] ?? ''}
+                    onChange={(event) =>
+                      setZipPasswords((current) => ({
+                        ...current,
+                        [index]: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ) : null,
+            )}
+            <div className="import-zip-actions">
+              <Button type="submit" disabled={busy || disabled || demo}>
+                {busy ? '正在本地读取…' : '解压并预览账单'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => {
+                  setPendingFiles([]);
+                  setZipPasswords({});
+                }}
+              >
+                取消
+              </Button>
+            </div>
+          </form>
+        )}
         <p className="import-privacy">
           <ShieldCheck size={15} />
-          只提取记账所需字段，不保存对方账号和原始订单号。单文件 ≤ 10 MB。
+          只提取记账所需字段，不保存密码、对方账号和原始订单号。单文件 ≤ 10 MB。
         </p>
         {demo && <p role="alert">请先返回真实账本，再导入个人账单。</p>}
         <div className="import-steps">
@@ -253,7 +342,7 @@ export function BillImporter({
         <div className="panel import-empty">
           <FileSpreadsheet size={38} />
           <h2>先选文件，不会立即记账</h2>
-          <p>在支付宝、微信导出时选择“用于个人对账”，邮件中的 ZIP 先解压。</p>
+          <p>在支付宝、微信导出时选择“用于个人对账”，直接选择邮件中的 ZIP；有密码时在上方输入。</p>
           <p className="muted">
             普通交易自动分类并勾选，退款到账归为退款收入；只有年月日时分秒完全相同的不同订单才提示可疑。分类可批量修改。
           </p>

@@ -9,7 +9,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.Settings;
+import android.provider.OpenableColumns;
+import android.util.Base64;
 import android.webkit.*;
 import android.widget.Toast;
 import org.json.JSONObject;
@@ -20,12 +21,13 @@ import java.util.*;
 public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net";
     private static final int EXPORT = 201, IMPORT = 202, BILLS = 203, LIMIT = 10 * 1024 * 1024;
-    private static final Set<String> KEYS = new HashSet<>(Arrays.asList("xiaoman-ledger-v1", "xiaoman-ledger-v1-before-restore", "xiaoman-ledger-v1-before-import", "xiaoman-ledger-v1-before-bulk", "xiaoman-ledger-v1-before-clear", "xiaoman-theme", "xiaoman-backup-status", "xiaoman-readonly-sync-meta"));
+    private static final Set<String> KEYS = new HashSet<>(Arrays.asList("xiaoman-ledger-v1", "xiaoman-ledger-v1-before-restore", "xiaoman-ledger-v1-before-import", "xiaoman-ledger-v1-before-bulk", "xiaoman-ledger-v1-before-clear", "xiaoman-theme", "xiaoman-backup-status"));
     private WebView web;
     private Store store;
     private String pendingExport;
     private boolean fileBusy;
     private ValueCallback<Uri[]> billCallback;
+    private volatile String pendingSharedBill;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -89,6 +91,50 @@ public class MainActivity extends Activity {
             }
         });
         web.loadUrl(ORIGIN + "/app/index.html");
+        receiveSharedBill(getIntent());
+    }
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        receiveSharedBill(intent);
+    }
+    private void receiveSharedBill(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        Uri uri = Intent.ACTION_SEND.equals(action)
+            ? intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            : Intent.ACTION_VIEW.equals(action) ? intent.getData() : null;
+        if (uri == null || !"content".equals(uri.getScheme())) return;
+        new Thread(() -> {
+            try {
+                String name = null;
+                try (Cursor cursor = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                    if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
+                }
+                if (name == null) name = uri.getLastPathSegment();
+                if (name == null) throw new IOException("Missing file name");
+                name = name.replace('\\', '/');
+                name = name.substring(name.lastIndexOf('/') + 1);
+                if (!name.matches("(?i).+\\.(zip|csv|xlsx)")) throw new IOException("Unsupported file");
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                try (InputStream input = getContentResolver().openInputStream(uri)) {
+                    if (input == null) throw new IOException("Missing file");
+                    byte[] chunk = new byte[8192]; int count;
+                    while ((count = input.read(chunk)) != -1) {
+                        if (buffer.size() + count > LIMIT) throw new IOException("File too large");
+                        buffer.write(chunk, 0, count);
+                    }
+                }
+                if (buffer.size() == 0) throw new IOException("Empty file");
+                JSONObject shared = new JSONObject();
+                shared.put("name", name);
+                shared.put("base64", Base64.encodeToString(buffer.toByteArray(), Base64.NO_WRAP));
+                pendingSharedBill = shared.toString();
+                emit("dailyLedgerSharedBill", "ready");
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(this, "无法读取分享的账单，请在日常记账中手动选择 ZIP、CSV 或 XLSX 文件。", Toast.LENGTH_LONG).show());
+            }
+        }, "shared-bill").start();
     }
     private WebResourceResponse denied() {
         return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
@@ -99,6 +145,11 @@ public class MainActivity extends Activity {
         @Override public void onUpgrade(SQLiteDatabase db, int old, int next) { throw new IllegalStateException("Unsupported schema version"); }
     }
     public final class Bridge {
+        @JavascriptInterface public String takeSharedBill() {
+            String value = pendingSharedBill;
+            pendingSharedBill = null;
+            return value;
+        }
         @JavascriptInterface public String getItem(String key) {
             if (!KEYS.contains(key)) throw new IllegalArgumentException("Unsupported key");
             try (Cursor c = store.getReadableDatabase().rawQuery("SELECT value FROM local_data WHERE name=?", new String[]{key})) { return c.moveToFirst() ? c.getString(0) : null; }
@@ -128,41 +179,6 @@ public class MainActivity extends Activity {
                 Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
                 try { startActivityForResult(intent,IMPORT); } catch(RuntimeException e) {fileBusy=false;emit("dailyLedgerFileResult","无法打开系统文件选择器。");}
             });
-        }
-        @JavascriptInterface public String getReadOnlySyncState() {
-            return ReadOnlySyncService.stateJson(MainActivity.this);
-        }
-        @JavascriptInterface public void openReadOnlySyncSettings() {
-            runOnUiThread(() -> {
-                try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
-                catch (RuntimeException e) { Toast.makeText(MainActivity.this, "无法打开辅助功能设置。", Toast.LENGTH_LONG).show(); }
-            });
-        }
-        @JavascriptInterface public String startReadOnlySync(String source, String since) {
-            if (!"alipay".equals(source) && !"wechat".equals(source)) return "同步来源无效。";
-            if (since != null && !since.isEmpty() && !since.matches("\\d{4}-\\d{2}-\\d{2}")) return "上次同步日期无效。";
-            if (!ReadOnlySyncService.isEnabled(MainActivity.this)) return "permission";
-            ReadOnlySyncService.begin(MainActivity.this, source, since == null ? "" : since);
-            final String packageName = "alipay".equals(source) ? ReadOnlySyncService.ALIPAY : ReadOnlySyncService.WECHAT;
-            runOnUiThread(() -> {
-                Intent launch = getPackageManager().getLaunchIntentForPackage(packageName);
-                if (launch == null) {
-                    ReadOnlySyncService.stop(MainActivity.this, "手机中未找到对应的支付应用。", true);
-                    emit("dailyLedgerReadOnlySync", ReadOnlySyncService.stateJson(MainActivity.this));
-                    return;
-                }
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                try { startActivity(launch); }
-                catch (RuntimeException e) { ReadOnlySyncService.stop(MainActivity.this, "无法打开支付应用。", true); }
-            });
-            return "started";
-        }
-        @JavascriptInterface public void stopReadOnlySync() {
-            ReadOnlySyncService.stop(MainActivity.this, "你已手动停止同步，可检查当前已读取的结果。", false);
-            emit("dailyLedgerReadOnlySync", ReadOnlySyncService.stateJson(MainActivity.this));
-        }
-        @JavascriptInterface public void clearReadOnlySync() {
-            ReadOnlySyncService.clear(MainActivity.this);
         }
     }
     private void emit(String event, String detail) {
