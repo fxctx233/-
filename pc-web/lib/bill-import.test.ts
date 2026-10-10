@@ -209,6 +209,23 @@ void test('food keywords override original shopping category and old merchant ru
     assert.equal(r.special, false);
   }
 });
+void test('phone and broadband charges become communication expenses without changing purchases or refunds', async () => {
+  const entries = await rowsToBills(
+    [
+      header,
+      row('phone', { 1: '日用百货', 2: '中国移动', 4: '手机话费充值' }),
+      row('data', { 2: '中国联通', 4: '流量包缴费' }),
+      row('broadband', { 2: '中国电信', 4: '宽带费' }),
+      row('device', { 1: '数码电器', 2: '中国移动营业厅', 4: '购买手机', 6: '100.00' }),
+      row('refund', { 2: '中国移动', 4: '话费退款', 5: '收入', 8: '退款成功' }),
+    ],
+    'communication.csv',
+    emptyBook(),
+  );
+  assert.deepEqual(entries.map((r) => r.category), [
+    '通信网络', '通信网络', '通信网络', '购物', '退款',
+  ]);
+});
 void test('less than 30 yuan personal outgoing transfers are food; 30 and incoming or own-account transfers are not', async () => {
   const items = await rowsToBills(
     [

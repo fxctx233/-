@@ -131,6 +131,16 @@ export function recommendCategory(
     };
   if (
     kind === 'expense' &&
+    (/话费|流量包|流量充值|手机套餐|宽带费|宽带缴费|宽带充值|通信费|通讯费/.test(text) ||
+      /中国移动|中国联通|中国电信|中国广电/.test(text) &&
+        /充值|缴费|套餐|流量|宽带/.test(text))
+  )
+    return {
+      category: '通信网络',
+      reason: '话费、流量或宽带费用，自动归为通信网络',
+    };
+  if (
+    kind === 'expense' &&
     /肯德基|KFC|美团|蔬果|蔬菜|水果|饮料|蜜雪冰城|餐饮|餐厅|面馆|饭店|快餐|麦当劳|瑞幸|奶茶|咖啡|小吃|汉堡|食堂|生鲜|果蔬|食品|外卖|早餐|午餐|晚餐/i.test(
       text,
     )

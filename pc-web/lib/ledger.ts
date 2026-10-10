@@ -202,7 +202,7 @@ export function bulkUpdateEntries(
           ),
   });
 }
-const addedExpenseCategories = ['转账', '工作需求', '综合购物'];
+const addedExpenseCategories = ['转账', '工作需求', '综合购物', '通信网络'];
 export const emptyBook = (): Book => ({
   version: 1,
   entries: [],

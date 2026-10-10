@@ -443,6 +443,7 @@ void test('old backups gain new expense categories without changing entries or d
     '转账',
     '工作需求',
     '综合购物',
+    '通信网络',
   ]);
   assert.deepEqual(migrated.entries, old.entries);
   assert.deepEqual(old.categories.expense, ['餐饮', '其他', '自定义']);
@@ -450,7 +451,7 @@ void test('old backups gain new expense categories without changing entries or d
   old.entries = [];
   old.categories.expense = Array.from({ length: 200 }, (_, i) => `分类${i}`);
   const full = validateBook(old);
-  assert.equal(full.categories.expense.length, 203);
+  assert.equal(full.categories.expense.length, 204);
   assert.deepEqual(validateBook(full), full);
 });
 test('historical entries retain selected date, optional time, and aggregate correctly', () => {
