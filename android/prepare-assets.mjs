@@ -9,7 +9,7 @@ mkdirSync(target, { recursive: true });
 const assetDir = join(target, 'assets');
 if (existsSync(assetDir)) {
   for (const entry of readdirSync(assetDir, { withFileTypes: true })) {
-    if (entry.isFile() && /^index-[\w-]+\.(js|css)$/.test(entry.name)) {
+    if (entry.isFile() && /^(?:index|bill-importer)-[\w-]+\.(js|css)$/.test(entry.name)) {
       unlinkSync(join(assetDir, entry.name));
     }
   }

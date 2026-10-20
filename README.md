@@ -37,7 +37,7 @@
 
 ## 安卓手机版
 
-提供 Android 8.0 及以上的竖屏离线测试版：顶部圆形记账入口、底部导航，内置 SQLite 和系统文件备份。当前 0.4.0，包含历史补记、分期存款计划、资金总额和手机支付账单导入审核。
+提供 Android 8.0 及以上的竖屏离线测试版：顶部圆形记账入口、底部导航，内置 SQLite 和系统文件备份。当前 0.5.7，包含历史补记、分期存款计划、资金总额、手机支付账单导入审核，以及第一轮模块拆分；旧账本和 JSON 备份格式不变。
 
 在 [Build Android APK](https://github.com/fxctx233/-/actions/workflows/android.yml) 中打开最近成功的构建，下载 `daily-ledger-android-debug` 产物并解压取得 APK（下载 Actions 产物可能需要登录 GitHub）。测试包不是正式商店发行版；安装和升级前请查看 [安卓说明](android/README.md)。网页版与安卓数据需通过导入导出转移，不自动同步。
 

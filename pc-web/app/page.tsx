@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { deviceStorage, isAndroidApp } from '@/lib/device';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { InstallmentCalculator } from '@/components/installment-calculator';
 import { BackupReminder } from '@/components/backup-reminder';
 import { ShoppingPlans } from '@/components/shopping-plans';
-import { BillImporter } from '@/components/bill-importer';
+import { GoalCard, SavingsPage } from '@/components/savings-page';
 import { Progress } from '@/components/ui/progress';
 import { ChartContainer } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
@@ -23,7 +23,6 @@ import {
   Settings2,
   ArrowUpRight,
   ArrowDownRight,
-  Bell,
   ArrowLeft,
   Pencil,
   Trash2,
@@ -59,11 +58,9 @@ import {
   periodEntries,
   totals,
   remaining,
-  monthsLeft,
   validateBook,
   demoBook,
   entryMoment,
-  toggleInstallment,
   bulkUpdateEntries,
   emptyEntryRanges,
   filterEntryRanges,
@@ -73,6 +70,12 @@ import {
   currentFunds,
   applyFundsChange,
 } from '@/lib/ledger';
+
+const BillImporter = lazy(() =>
+  import('@/components/bill-importer').then((module) => ({
+    default: module.BillImporter,
+  })),
+);
 type View =
   | 'overview'
   | 'ledger'
@@ -702,10 +705,6 @@ export default function Home() {
       setError((e as Error).message);
     }
   }
-  const unfinished = book.goals.filter(
-    (g) => !(g.completed ?? remaining(g) === 0),
-  );
-  const savedTotal = book.goals.reduce((s, g) => s + g.saved, 0);
   const chartData = Array.from(
     {
       length:
@@ -770,148 +769,6 @@ export default function Home() {
                       ? '调整你的存款计划'
                       : '给愿望定一个目标'
                     : '为目标再近一步';
-  function goalCard(g: Goal, compact = false) {
-    const left = remaining(g),
-      months = monthsLeft(g);
-    return (
-      <article className="goal" key={g.id}>
-        <div className="goal-head">
-          <h3>{g.name}</h3>
-          <span className="badge">
-            {(g.completed ?? left === 0)
-              ? '已完成'
-              : left === 0
-                ? '金额已达标'
-                : g.deadline < today()
-                  ? '已逾期'
-                  : '积累中'}
-          </span>
-        </div>
-        <p>
-          <b>{money(g.saved)}</b>{' '}
-          <span className="muted">/ {money(g.target)}</span>
-        </p>
-        <Progress
-          aria-label={`${g.name}完成进度`}
-          value={Math.min(100, Math.round((g.saved / g.target) * 100))}
-          className="my-4"
-        />
-        <div className="goal-head">
-          <small>还差 {money(left)}</small>
-          <small>
-            {Math.min(100, Math.round((g.saved / g.target) * 100))}%
-          </small>
-        </div>
-        <p className="muted">
-          {g.deadline} 截止
-          {left > 0
-            ? months > 0
-              ? ` · 每月约存 ${money(Math.ceil(left / months))}`
-              : ' · 目标已到期，请调整计划'
-            : ' · 目标达成，真好！'}
-        </p>
-        {!compact && (
-          <>
-            <label className="goal-complete-toggle">
-              <Checkbox
-                checked={g.completed ?? left === 0}
-                onCheckedChange={(checked) =>
-                  commit({
-                    ...book,
-                    goals: book.goals.map((x) =>
-                      x.id === g.id ? { ...x, completed: checked } : x,
-                    ),
-                  })
-                }
-              />
-              手动标记整个计划已完成
-            </label>
-            <p className="muted">
-              取消勾选可重新开启计划；此开关不改变已存金额。
-            </p>
-            {g.installments && (
-              <details className="installment-list" open>
-                <summary>
-                  分期安排 · {g.installments.filter((p) => p.done).length}/
-                  {g.installments.length} 期完成
-                </summary>
-                <div className="installment-rows">
-                  {g.installments.map((p, i) => (
-                    <label
-                      key={p.id}
-                      className={`installment-row ${p.done ? 'is-done' : ''}`}
-                    >
-                      <Checkbox
-                        aria-label={`${g.name}第${i + 1}期完成`}
-                        checked={p.done}
-                        onCheckedChange={(checked) => {
-                          try {
-                            const updated = toggleInstallment(g, p.id, checked);
-                            commit({
-                              ...book,
-                              goals: book.goals.map((x) =>
-                                x.id === g.id ? updated : x,
-                              ),
-                            });
-                          } catch (e) {
-                            setError((e as Error).message);
-                          }
-                        }}
-                      />
-                      <span>
-                        第 {i + 1} 期{' '}
-                        <small>
-                          {p.date}
-                          {!p.done && p.date < today() ? ' · 已到期' : ''}
-                        </small>
-                      </span>
-                      <b>{money(p.cents)}</b>
-                      <small>{p.done ? '已完成 · 可取消' : '待存入'}</small>
-                    </label>
-                  ))}
-                </div>
-                <p className="muted">
-                  实际存好后再勾选：计入该期金额；取消勾选会撤回。不要再通过“存入”重复录入。若需取出已勾选的存款，请先取消相应期次。
-                </p>
-              </details>
-            )}
-            <div className="flex">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setGoalEdit(g);
-                  go('deposit');
-                }}
-              >
-                <Plus />
-                存入 / 取出
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => addGoal(g)}
-                aria-label={`编辑${g.name}`}
-              >
-                <Pencil />
-              </Button>
-              <Button
-                variant="ghost"
-                aria-label={`删除${g.name}`}
-                onClick={() => {
-                  if (confirm(`删除“${g.name}”？不会修改收支账目。`))
-                    commit({
-                      ...book,
-                      goals: book.goals.filter((x) => x.id !== g.id),
-                    });
-                }}
-              >
-                <Trash2 />
-              </Button>
-            </div>
-          </>
-        )}
-      </article>
-    );
-  }
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -1338,7 +1195,21 @@ export default function Home() {
               </div>
               {book.goals.length ? (
                 <div className="backup-grid">
-                  {book.goals.slice(0, 2).map((g) => goalCard(g, true))}
+                  {book.goals.slice(0, 2).map((goal) => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      compact
+                      book={book}
+                      onCommit={commit}
+                      onError={setError}
+                      onEditGoal={(item) => addGoal(item)}
+                      onDeposit={(item) => {
+                        setGoalEdit(item);
+                        go('deposit');
+                      }}
+                    />
+                  ))}
                 </div>
               ) : (
                 <div className="empty">
@@ -1924,129 +1795,47 @@ export default function Home() {
         )}
         {importOpened && (
           <div hidden={view !== 'import'}>
-            <BillImporter
-              book={book}
-              disabled={!ready || blocked}
-              demo={demo}
-              sharedBill={sharedBill}
-              onSharedBillTaken={() => setSharedBill(null)}
-              onBack={() => go('ledger')}
-              onBackup={() => download(book)}
-              onCommit={(next) => {
-                try {
-                  if (blocked || demo)
-                    throw new Error('请先恢复真实账本的正常写入状态。');
-                  deviceStorage.setItem(
-                    KEY + '-before-import',
-                    JSON.stringify(book),
-                  );
-                  return commit(next);
-                } catch (e) {
-                  setError((e as Error).message);
-                  return false;
-                }
-              }}
-            />
+            <Suspense fallback={<div className="panel">正在打开账单读取…</div>}>
+              <BillImporter
+                book={book}
+                disabled={!ready || blocked}
+                demo={demo}
+                sharedBill={sharedBill}
+                onSharedBillTaken={() => setSharedBill(null)}
+                onBack={() => go('ledger')}
+                onBackup={() => download(book)}
+                onCommit={(next) => {
+                  try {
+                    if (blocked || demo)
+                      throw new Error('请先恢复真实账本的正常写入状态。');
+                    deviceStorage.setItem(
+                      KEY + '-before-import',
+                      JSON.stringify(book),
+                    );
+                    return commit(next);
+                  } catch (e) {
+                    setError((e as Error).message);
+                    return false;
+                  }
+                }}
+              />
+            </Suspense>
           </div>
         )}
         {view === 'goals' && (
-          <>
-            <div className="toolbar">
-              <h1>存款计划</h1>
-              <Button onClick={() => addGoal()}>
-                <Plus />
-                新建计划
-              </Button>
-            </div>
-            <h2>正在存款的项目</h2>
-            <div className="backup-grid">
-              {unfinished.map((g) => (
-                <section className="panel" key={g.id}>
-                  {goalCard(g)}
-                </section>
-              ))}
-            </div>
-            {!unfinished.length && (
-              <div className="panel empty">
-                目前没有进行中的存款计划。
-                <Button variant="link" onClick={() => addGoal()}>
-                  创建第一个目标
-                </Button>
-              </div>
-            )}
-            {book.goals.length > unfinished.length && (
-              <details className="panel">
-                <summary>
-                  已完成的计划（{book.goals.length - unfinished.length}）
-                </summary>
-                <div className="backup-grid">
-                  {book.goals
-                    .filter((g) => !unfinished.some((u) => u.id === g.id))
-                    .map((g) => (
-                      <section key={g.id}>{goalCard(g)}</section>
-                    ))}
-                </div>
-              </details>
-            )}
-            <div className="notice">
-              <Bell size={17} />
-              <span>
-                {unfinished.length
-                  ? `你有 ${unfinished.length} 个目标待完成，还需存入 ${money(unfinished.reduce((s, g) => s + remaining(g), 0))}。`
-                  : '每一次积累，都值得被看见。'}{' '}
-                当前为应用内进度提醒，关闭网页后不会通知。
-              </span>
-            </div>
-            <section className="stats">
-              <article className="stat featured">
-                <p>计划累计已存</p>
-                <strong>{money(savedTotal)}</strong>
-                <small>手动分配的存款，不重复计入收支</small>
-              </article>
-              <article className="stat">
-                <p>进行中的目标</p>
-                <strong>
-                  {unfinished.length}{' '}
-                  <small style={{ display: 'inline' }}>个</small>
-                </strong>
-                <small>每月建议按含本月的剩余自然月均摊</small>
-              </article>
-              <article className="stat">
-                <p>已经完成</p>
-                <strong>
-                  {book.goals.length - unfinished.length}{' '}
-                  <small style={{ display: 'inline' }}>个</small>
-                </strong>
-                <small>让期待，一件件发生</small>
-              </article>
-            </section>
-            <p className="muted">
-              分期完成状态会随备份保存。普通存入/取出暂不保留逐笔历史；请勿把同一笔存款分配给多个目标。
-            </p>
-            <div className="calculator-entry">
-              <div>
-                <h2>把一个目标，拆成每月的小计划</h2>
-                <p className="muted">
-                  填入旅行、购物或备用金预算，比较几种分期存款安排。
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => setShowCalculator((v) => !v)}
-              >
-                {showCalculator ? '收起计算器' : '打开分期存款计算器'}
-              </Button>
-            </div>
-            {showCalculator && (
-              <InstallmentCalculator
-                onCreate={(goal) => {
-                  const ok = commit({ ...book, goals: [...book.goals, goal] });
-                  if (ok) setShowCalculator(false);
-                  return ok;
-                }}
-              />
-            )}
-          </>
+          <SavingsPage
+            book={book}
+            onCommit={commit}
+            onError={setError}
+            onNewGoal={() => addGoal()}
+            onEditGoal={(goal) => addGoal(goal)}
+            onDeposit={(goal) => {
+              setGoalEdit(goal);
+              go('deposit');
+            }}
+            showCalculator={showCalculator}
+            onToggleCalculator={() => setShowCalculator((value) => !value)}
+          />
         )}
         {view === 'shopping' && (
           <ShoppingPlans
